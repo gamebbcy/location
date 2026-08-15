@@ -2,10 +2,14 @@ services:
   - type: web
     name: location-guardian
     env: node
-    buildCommand: npm install && npm run build:server && npm run build:client
-    startCommand: node dist/server/main.js
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build
+    startCommand: cd dist && node server/main.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "22"
     healthCheckPath: /
     autoDeploy: yes
