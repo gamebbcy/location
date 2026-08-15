@@ -9,10 +9,11 @@ COPY . .
 RUN npm run build
 
 FROM node:22-bookworm-slim
-RUN useradd -m -u 1000 user
 WORKDIR /app
-COPY --from=builder --chown=user /app/dist /app/dist
-USER user
+COPY --from=builder --chown=node /app/dist /app/dist
+USER node
 ENV NODE_ENV=production
+ENV FORCE_AUTHN_INNERAPI_DOMAIN=http://platform.local
+ENV DEPRECATED_SKIP_INIT_DB_CONNECTION=1
 EXPOSE 7860
 CMD ["sh", "-c", "cd dist && node server/main.js"]

@@ -11,5 +11,9 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
+      - key: FORCE_AUTHN_INNERAPI_DOMAIN
+        value: http://platform.local
+      - key: DEPRECATED_SKIP_INIT_DB_CONNECTION
+        value: "1"
     healthCheckPath: /
     autoDeploy: yes

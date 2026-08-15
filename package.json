@@ -30,8 +30,8 @@
     "lint": "node ./scripts/lint.js",
     "format": "prettier --write \"{server,client,test}/**/*.{js,ts,tsx,json,md}\"",
     "precommit": "node scripts/hooks/run-precommit.js",
-    "prepare": "chmod +x .githooks/pre-commit 2>/dev/null; git config core.hooksPath .githooks 2>/dev/null || true",
-    "postinstall": "fullstack-cli action-plugin init"
+    "prepare": "node scripts/postinstall.js",
+    "postinstall": "node scripts/postinstall.js"
   },
   "dependencies": {
     "@lark-apaas/fullstack-nestjs-core": "^1.1.57",
@@ -127,6 +127,7 @@
     "@types/node": "^22.18.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@vercel/nft": "^1.10.2",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "~2.0.1",

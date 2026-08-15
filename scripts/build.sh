@@ -21,7 +21,9 @@ print_time() {
 # ==================== 步骤 0 ====================
 echo "🗑️  [0/6] 安装插件"
 STEP_START=$(node -e "console.log(Date.now())")
-npx fullstack-cli action-plugin init
+# fullstack-cli action-plugin init 是交互式命令，在 CI 中无法运行；
+# 项目代码不依赖其产物，生产构建直接跳过。
+echo "   [skip] fullstack-cli action-plugin init (interactive, not needed for prod build)"
 print_time $STEP_START
 echo ""
 
