@@ -1,4 +1,4 @@
-import { Controller, Get, Req, Res, Next, Render } from '@nestjs/common';
+import { Controller, Get, Req, Res, Next } from '@nestjs/common';
 import { existsSync } from 'fs';
 import { join, extname } from 'path';
 import type { Request, Response, NextFunction } from 'express';
@@ -6,24 +6,43 @@ import type { Request, Response, NextFunction } from 'express';
 const clientDistPath = join(process.cwd(), 'dist', 'client');
 const isProd = process.env.NODE_ENV === 'production';
 
+type PlatformData = {
+  appId?: string;
+  basename?: string;
+  [key: string]: unknown;
+};
+
 function setNoCacheHeaders(res: Response): void {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 }
 
+function renderIndex(req: Request, res: Response): void {
+  const platformData = (
+    req as Request & { __platform_data__?: PlatformData }
+  ).__platform_data__ ?? {};
+  const basename =
+    platformData.appId && platformData.basename
+      ? platformData.basename
+      : process.env.CLIENT_BASE_PATH || '/';
+
+  setNoCacheHeaders(res);
+  res.render('index', {
+    __platform__: JSON.stringify(platformData),
+    basename,
+  });
+}
+
 @Controller()
 export class ViewController {
 
   @Get('*')
-  @Render('index')
-  async serve(
+  serve(
     @Req() req: Request,
     @Res() res: Response,
     @Next() next: NextFunction,
-  ): Promise<{ __platform__: string } | void> {
-    setNoCacheHeaders(res);
-
+  ): void {
     const url = req.path || '/';
     if (url.startsWith('/api') || url.startsWith('/socket.io')) {
       next();
@@ -31,33 +50,34 @@ export class ViewController {
     }
 
     if (isProd && existsSync(clientDistPath)) {
-      if (url === '/' || url === '') {
-        const indexPath = join(clientDistPath, 'index.html');
-        if (existsSync(indexPath)) {
-          res.sendFile(indexPath);
-          return;
-        }
-      }
+      const indexPath = join(clientDistPath, 'index.html');
+      const shouldRenderIndex =
+        url === '/' ||
+        url === '' ||
+        url === '/index.html' ||
+        !extname(url);
 
-      const filePath = join(clientDistPath, url);
-      if (extname(url) && existsSync(filePath)) {
-        const maxAge = url.startsWith('/assets/') ? '1y' : 0;
-        res.sendFile(filePath, { maxAge });
+      if (shouldRenderIndex && existsSync(indexPath)) {
+        renderIndex(req, res);
         return;
       }
 
-      if (!extname(url)) {
-        const indexPath = join(clientDistPath, 'index.html');
-        if (existsSync(indexPath)) {
-          res.sendFile(indexPath);
+      if (extname(url)) {
+        const filePath = join(clientDistPath, url.replace(/^\/+/, ''));
+        if (existsSync(filePath)) {
+          const isHashedAsset = url.startsWith('/assets/');
+          res.sendFile(filePath, {
+            immutable: isHashedAsset,
+            maxAge: isHashedAsset ? '1y' : 0,
+          });
           return;
         }
+
+        res.status(404).type('text/plain').send('Not Found');
+        return;
       }
     }
 
-    const platformData = (req as any).__platform_data__ ?? {};
-    return {
-      __platform__: JSON.stringify(platformData),
-    };
+    renderIndex(req, res);
   }
 }
