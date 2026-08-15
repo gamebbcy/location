@@ -144,11 +144,13 @@ echo ""
 echo "📦 [5/6] 准备产物"
 STEP_START=$(node -e "console.log(Date.now())")
 
-# 移动 client 下的 HTML 文件到 dist/dist/client，保证 views 路径在 dev/prod 下一致
-# 使用 mv 而非 cp：HTML 不能上传到公网 CDN，移走后 dist/client 中不再包含 HTML
+# 移动 client 下的全部产物到 dist/dist/client，保证 views 路径在 dev/prod 下一致
+# dev: cwd=项目根, views=dist/client
+# prod: cwd=dist/, views=dist/dist/client
+# 注意：HTML/assets/polyfills 必须整体移动（只移 html 会导致自托管时 /assets 404 → SPA 白屏）
 if [ -d "$DIST_DIR/client" ]; then
   mkdir -p "$DIST_DIR/dist/client"
-  find "$DIST_DIR/client" -maxdepth 1 -name "*.html" -exec mv {} "$DIST_DIR/dist/client/" \;
+  find "$DIST_DIR/client" -mindepth 1 -maxdepth 1 -exec mv {} "$DIST_DIR/dist/client/" \;
 fi
 
 # server 相关产物准备（only_frontend_change=true 时跳过）
