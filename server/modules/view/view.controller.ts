@@ -6,6 +6,12 @@ import type { Request, Response, NextFunction } from 'express';
 const clientDistPath = join(process.cwd(), 'dist', 'client');
 const isProd = process.env.NODE_ENV === 'production';
 
+type PlatformData = {
+  appId?: string;
+  basename?: string;
+  [key: string]: unknown;
+};
+
 function setNoCacheHeaders(res: Response): void {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -14,12 +20,17 @@ function setNoCacheHeaders(res: Response): void {
 
 function renderIndex(req: Request, res: Response): void {
   const platformData = (
-    req as Request & { __platform_data__?: unknown }
+    req as Request & { __platform_data__?: PlatformData }
   ).__platform_data__ ?? {};
+  const basename =
+    platformData.appId && platformData.basename
+      ? platformData.basename
+      : process.env.CLIENT_BASE_PATH || '/';
 
   setNoCacheHeaders(res);
   res.render('index', {
     __platform__: JSON.stringify(platformData),
+    basename,
   });
 }
 
