@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: location-guardian
+    env: node
+    buildCommand: npm install && npm run build:server && npm run build:client
+    startCommand: node dist/server/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /
+    autoDeploy: yes

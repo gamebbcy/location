@@ -1,0 +1,473 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "type": "app_init",
+      "name": "应用初始化任务",
+      "status": "completed",
+      "subtasks": [
+        "初始化布局导航文件Layout",
+        "初始化主题文件",
+        "初始化占位页面和路由",
+        "本任务以编译与日志检查为界，日志确认无错即提交；运行时核验统一由验收测试任务承担"
+      ],
+      "beginTime": 1786458565911,
+      "endTime": 1786458789950
+    },
+    {
+      "id": 2,
+      "name": "应用架构与基础框架搭建",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "读取 coding-guide skill 了解项目编码规范",
+        "配置前端路由与底部 Tab 导航 Layout",
+        "配置深色/浅色主题系统与全局样式",
+        "创建本地存储层（localStorage + IndexedDB）封装",
+        "创建核心工具函数（Haversine 距离、运动状态判断、设备信息解析等）",
+        "预留高德地图/天气 API key 配置项",
+        "安装 Socket.IO 客户端依赖"
+      ],
+      "requirements": [
+        "20"
+      ],
+      "write_scope": [
+        "client/src/app.tsx",
+        "client/src/components/Layout.tsx",
+        "client/src/components/BottomNav.tsx",
+        "client/src/lib/storage.ts",
+        "client/src/lib/utils/*.ts",
+        "client/src/config/index.ts",
+        "client/src/index.css",
+        "tailwind.config.ts"
+      ],
+      "read_scope": [
+        "components.json",
+        "client/src/app.tsx",
+        "client/src/components/Layout.tsx"
+      ],
+      "acceptance": "前端路由与底部 Tab 导航可正常切换，主题切换生效，本地存储封装可用，工具函数单元验证通过",
+      "dependencies": [],
+      "beginTime": 1786458790138,
+      "endTime": 1786459185787
+    },
+    {
+      "id": 3,
+      "name": "服务端 WebSocket 实时中继模块开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "读取 coding-guide skill，遵循后端编码规范",
+        "安装 @nestjs/websockets 与 socket.io 依赖",
+        "创建 realtime 模块：RealtimeGateway 连接管理",
+        "实现内存在线用户映射与上下线广播",
+        "实现位置上报与转发（location:update / friend:location:update）",
+        "实现一对一消息与强提醒中继（message:send / alert:send）",
+        "实现简单速率限制防滥用",
+        "在 AppModule 中注册模块并验证可连接"
+      ],
+      "requirements": [
+        "6",
+        "15",
+        "17",
+        "19"
+      ],
+      "write_scope": [
+        "server/modules/realtime/**"
+      ],
+      "read_scope": [
+        "server/app.module.ts",
+        "server/main.ts"
+      ],
+      "acceptance": "WebSocket 连接成功，位置上报后在线好友可收到推送，消息可双向转发，断开后内存数据被清除",
+      "dependencies": [],
+      "beginTime": 1786458790138,
+      "endTime": 1786459185787
+    },
+    {
+      "id": 4,
+      "name": "登录与授权引导页开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现登录页：手机号输入 + 格式校验 + 获取验证码按钮",
+        "实现模拟验证码生成与显示（4 位数字直接展示）",
+        "实现验证码校验与登录状态本地持久化",
+        "实现授权引导页（3 屏滑动：定位权限/通知权限/隐私承诺）",
+        "实现权限申请与状态本地记录",
+        "实现退出登录功能",
+        "登录状态路由守卫（未登录跳登录页、已登录跳首页）"
+      ],
+      "requirements": [
+        "1",
+        "3"
+      ],
+      "write_scope": [
+        "client/src/pages/LoginPage/**",
+        "client/src/pages/OnboardingPage/**",
+        "client/src/hooks/useAuth.ts"
+      ],
+      "read_scope": [
+        "client/src/app.tsx",
+        "client/src/lib/storage.ts"
+      ],
+      "acceptance": "手机号登录流程完整可走通（模拟验证码），授权引导页可逐项授权，刷新后登录状态保持",
+      "dependencies": [
+        2
+      ],
+      "beginTime": 1786459185970,
+      "endTime": 1786461326460
+    },
+    {
+      "id": 5,
+      "name": "地图页与实时位置展示开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "封装高德地图 JS API 动态加载与初始化组件",
+        "实现地图加载、定位到当前位置、基础交互",
+        "实现自定义头像标记（头像 + 昵称 + 运动状态小图标）",
+        "实现 GPS 位置监听与定时上报（5 秒间隔）",
+        "实现运动状态自动计算（速度 → 乘车/步行/跑步/停留）",
+        "实现停留时长计算与显示",
+        "实现好友位置实时更新与标记刷新",
+        "实现底部好友气泡条（横向滚动，点击快速定位）",
+        "实现左下角个人状态快速设置入口",
+        "顶部状态栏（在线好友数、定位按钮、图层切换）"
+      ],
+      "requirements": [
+        "6",
+        "7",
+        "14"
+      ],
+      "write_scope": [
+        "client/src/pages/MapPage/**",
+        "client/src/components/MapView/**",
+        "client/src/hooks/useGeolocation.ts",
+        "client/src/hooks/useMotionState.ts"
+      ],
+      "read_scope": [
+        "client/src/lib/storage.ts",
+        "client/src/lib/utils/geo.ts"
+      ],
+      "acceptance": "高德地图加载成功，自身位置标记正确显示，运动状态随速度自动切换，好友上线后位置标记实时更新",
+      "dependencies": [
+        2,
+        3
+      ],
+      "beginTime": 1786459185970,
+      "endTime": 1786461326460
+    },
+    {
+      "id": 6,
+      "name": "好友管理与常用地点开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现邀请码生成（6位字符）与邀请链接生成",
+        "实现输入邀请码添加好友（点对点绑定）",
+        "实现分享功能（QQ/微信/复制链接，调用系统分享）",
+        "实现好友列表（在线/离线分组、头像、昵称、状态、运动状态图标）",
+        "实现删除好友（长按 + 二次确认）",
+        "实现常用地点列表展示",
+        "实现添加/编辑/删除常用地点（名称、地址、经纬度、标签）",
+        "到达常用地点附近自动识别（基于距离阈值）",
+        "所有数据持久化到本地存储"
+      ],
+      "requirements": [
+        "4",
+        "5",
+        "11"
+      ],
+      "write_scope": [
+        "client/src/pages/FriendsPage/**",
+        "client/src/hooks/useFriends.ts",
+        "client/src/hooks/usePlaces.ts"
+      ],
+      "read_scope": [
+        "client/src/lib/storage.ts",
+        "client/src/lib/utils/geo.ts"
+      ],
+      "acceptance": "可生成邀请码、输入邀请码添加好友，好友列表实时显示在线状态，常用地点增删改查完整可用",
+      "dependencies": [
+        2
+      ],
+      "beginTime": 1786459185970,
+      "endTime": 1786461326460
+    },
+    {
+      "id": 7,
+      "name": "消息系统与敏感词过滤开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现消息会话列表（按时间排序、最新消息预览、未读红点）",
+        "实现一对一聊天界面（消息气泡、时间戳、发送状态）",
+        "实现 WebSocket 消息收发与本地持久化",
+        "实现新消息浏览器通知提醒",
+        "实现强提醒功能（按钮 + 弹窗 + 震动 + 通知）",
+        "内置基础敏感词库与前端发送前过滤替换（*号）",
+        "实现自定义敏感词管理（添加/删除）",
+        "消息列表与聊天界面间路由跳转"
+      ],
+      "requirements": [
+        "17",
+        "18",
+        "15"
+      ],
+      "write_scope": [
+        "client/src/pages/MessagesPage/**",
+        "client/src/hooks/useMessages.ts",
+        "client/src/hooks/useSensitiveWords.ts",
+        "client/src/lib/sensitive-words.ts"
+      ],
+      "read_scope": [
+        "client/src/lib/storage.ts"
+      ],
+      "acceptance": "消息可通过 WebSocket 实时收发，历史消息本地持久化可读取，敏感词发送时被替换，强提醒可触发浏览器通知",
+      "dependencies": [
+        2,
+        3
+      ],
+      "beginTime": 1786459185970,
+      "endTime": 1786461326460
+    },
+    {
+      "id": 8,
+      "name": "个人中心与资料设置开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现个人资料卡（大头像、昵称、当前状态）",
+        "实现昵称修改与头像上传（本地存储 base64）",
+        "实现个人状态设置（基础选项 + 自定义 + 持续时间）",
+        "实现状态到期自动恢复默认（定时器）",
+        "实现听歌状态设置（选择 App + 输入歌曲名 + 开关）",
+        "实现主题切换（深/浅/跟随系统）",
+        "实现退出登录与清除本地数据入口",
+        "实现假装来电与快捷指令入口跳转"
+      ],
+      "requirements": [
+        "2",
+        "14",
+        "16",
+        "20"
+      ],
+      "write_scope": [
+        "client/src/pages/ProfilePage/**",
+        "client/src/hooks/useProfile.ts",
+        "client/src/hooks/useMusicState.ts",
+        "client/src/hooks/useTheme.ts"
+      ],
+      "read_scope": [
+        "client/src/lib/storage.ts"
+      ],
+      "acceptance": "资料修改即时生效并本地持久化，状态设置后地图/列表同步更新，主题切换全局生效",
+      "dependencies": [
+        2
+      ],
+      "beginTime": 1786459185970,
+      "endTime": 1786461326460
+    },
+    {
+      "id": 9,
+      "name": "好友详情页开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现好友详情页布局（顶部信息栏 + 四宫格 + 电量位置 + 地图轨迹 + 操作栏）",
+        "实现设备信息四宫格展示（机型/网络/距离/GPS精度）",
+        "实现电量显示与变化趋势（低电量红色警示）",
+        "实现小地图展示好友当前位置",
+        "实现 7 天轨迹展示（按日期切换，轨迹线叠加）",
+        "实现快捷操作按钮：打电话（tel:链接 + 号码编辑）",
+        "实现快捷操作：站内消息（跳转聊天）",
+        "实现快捷操作：快速导航（高德/百度 URL Scheme）",
+        "实现快捷操作：天气（调用天气 API 展示）",
+        "实现快捷操作：强提醒按钮",
+        "实现听歌状态卡片展示与跳转",
+        "实现定位关闭红色提醒条"
+      ],
+      "requirements": [
+        "8",
+        "9",
+        "10",
+        "15",
+        "16",
+        "19"
+      ],
+      "write_scope": [
+        "client/src/pages/FriendDetailPage/**",
+        "client/src/components/FriendMap/**"
+      ],
+      "read_scope": [
+        "client/src/pages/MapPage",
+        "client/src/hooks/useGeolocation.ts"
+      ],
+      "acceptance": "好友详情页各项信息实时刷新，四宫格数据正确，轨迹可按日期切换查看，快捷操作按钮功能可用",
+      "dependencies": [
+        5,
+        6
+      ],
+      "endTime": 1786461326460
+    },
+    {
+      "id": 10,
+      "name": "本地轨迹记录与 7 天覆盖开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现轨迹点自动记录（位置变化时写入 IndexedDB）",
+        "实现轨迹数据按日期分天存储",
+        "实现 7 天自动覆盖机制（删除 7 天前数据）",
+        "实现轨迹查询（按日期范围读取）",
+        "实现轨迹在地图上的 Polyline 绘制",
+        "实现手动清除全部轨迹数据功能",
+        "好友端轨迹查看入口（好友详情页地图轨迹区）"
+      ],
+      "requirements": [
+        "8"
+      ],
+      "write_scope": [
+        "client/src/hooks/useTrajectory.ts",
+        "client/src/components/TrajectoryMap/**"
+      ],
+      "read_scope": [
+        "client/src/lib/storage.ts",
+        "client/src/components/MapView"
+      ],
+      "acceptance": "运动轨迹自动记录到本地，7 天前数据被自动覆盖，轨迹线可在地图上正确绘制",
+      "dependencies": [
+        5
+      ],
+      "endTime": 1786461326460
+    },
+    {
+      "id": 11,
+      "name": "快捷指令自动化规则开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现快捷指令页布局（推荐模板横滑 + 已创建规则列表 + 添加按钮）",
+        "实现预置模板（深夜未到家提醒、到家自动报平安、出门自动通知）",
+        "实现规则创建/编辑（条件：时间/位置/状态 + 动作：提醒/发消息/改状态）",
+        "实现规则启用/关闭开关",
+        "实现条件匹配检查引擎（定时轮询 + 位置变化触发）",
+        "实现动作执行（浏览器通知、发送消息、更改状态）",
+        "规则数据持久化到本地存储"
+      ],
+      "requirements": [
+        "12"
+      ],
+      "write_scope": [
+        "client/src/pages/ShortcutsPage/**",
+        "client/src/hooks/useShortcuts.ts",
+        "client/src/lib/shortcut-engine.ts"
+      ],
+      "read_scope": [
+        "client/src/lib/storage.ts"
+      ],
+      "acceptance": "可创建/编辑/删除规则，预置模板可一键应用，条件触发时对应动作正确执行",
+      "dependencies": [
+        2,
+        6
+      ],
+      "endTime": 1786461326460
+    },
+    {
+      "id": 12,
+      "name": "假装来电功能开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现假装来电设置弹窗（来电者姓名、头像、延迟响铃时间）",
+        "实现来电界面（iOS/Android 双风格，根据 UA 自动匹配）",
+        "使用 Web Audio API 合成系统电话铃声风格音频",
+        "实现震动效果（navigator.vibrate）",
+        "实现接听后通话计时界面",
+        "实现挂断返回原页面",
+        "铃声渐入与屏幕渐变动画效果"
+      ],
+      "requirements": [
+        "13"
+      ],
+      "write_scope": [
+        "client/src/pages/FakeCallPage/**",
+        "client/src/lib/ringtone.ts"
+      ],
+      "read_scope": [
+        "client/src/lib/utils/device.ts"
+      ],
+      "acceptance": "进入假装来电页后铃声响起，接听显示通话计时，挂断返回原页，iOS/Android 风格根据设备正确匹配",
+      "dependencies": [
+        2
+      ],
+      "beginTime": 1786459185970,
+      "endTime": 1786461326460
+    },
+    {
+      "id": 13,
+      "name": "好友离线/上线检测与通知开发",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "实现 WebSocket 断开事件监听（服务端 disconnect → 广播好友下线）",
+        "实现前端接收好友下线通知并更新在线状态",
+        "实现好友下线时发送站内系统消息",
+        "实现好友下线浏览器通知提醒",
+        "实现地图头像离线灰度效果",
+        "实现好友重新上线通知与状态恢复",
+        "好友详情页定位关闭红色提醒条联动"
+      ],
+      "requirements": [
+        "19"
+      ],
+      "write_scope": [
+        "client/src/hooks/useFriendPresence.ts",
+        "server/modules/realtime/connection.service.ts"
+      ],
+      "read_scope": [
+        "server/modules/realtime/realtime.gateway.ts"
+      ],
+      "acceptance": "好友断开连接后地图头像变灰、收到下线通知，重新连接后自动恢复并收到上线通知",
+      "dependencies": [
+        3,
+        5,
+        7
+      ],
+      "endTime": 1786461326460
+    },
+    {
+      "id": 14,
+      "name": "全链路联调与验收测试",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "读取 testing-guide skill 制定验收方案",
+        "入口检查：登录页可正常访问，底部 Tab 导航可切换",
+        "核心验收目标1：地图实时位置——两个用户可在地图上看到对方头像，运动状态随速度变化",
+        "核心验收目标2：好友添加与隐私隔离——通过邀请码绑定好友后双方互可见，非好友完全不可见",
+        "核心验收目标3：消息与强提醒——一对一消息实时送达，敏感词被过滤，强提醒可触发浏览器通知",
+        "非核心降级范围：高德地图 key 缺失时的降级展示、天气 API 不可用、假装来电铃声效果细节、快捷指令复杂条件组合"
+      ],
+      "requirements": [],
+      "write_scope": [],
+      "read_scope": [],
+      "acceptance": "核心功能链路完整跑通，无阻塞性问题",
+      "dependencies": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "beginTime": 1786461326609,
+      "endTime": 1786461637725
+    }
+  ]
+}
