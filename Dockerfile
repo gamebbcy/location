@@ -14,6 +14,5 @@ WORKDIR /app
 COPY --from=builder --chown=user /app/dist /app/dist
 USER user
 ENV NODE_ENV=production
-ENV PORT=7860
 EXPOSE 7860
 CMD ["sh", "-c", "cd dist && node server/main.js"]
