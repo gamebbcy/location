@@ -126,6 +126,7 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
   const mapRef = useRef<unknown>(null);
   const markerInstancesRef = useRef<Map<string, unknown>>(new Map());
   const polylineInstancesRef = useRef<Map<string, unknown>>(new Map());
+  const clickHandlerRef = useRef<((e: any) => void) | null>(null);
 
   // 当前地图视野 bounds 快照（用于边缘指示计算）
   const [bounds, setBounds] = useState<{
@@ -219,9 +220,11 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
 
         // Map click
         if (onClick) {
-          map.on('click', (e: any) => {
+          const handler = (e: any) => {
             onClick(e.lnglat.getLat(), e.lnglat.getLng());
-          });
+          };
+          clickHandlerRef.current = handler;
+          map.on('click', handler);
         }
 
         // Bounds change → 用于边缘指示
@@ -374,12 +377,23 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
   // Map click handler update
   useEffect(() => {
     const map = mapRef.current as any;
-    if (!map || !onClick) return;
-    // Re-bind click handler
-    map.off('click');
-    map.on('click', (e: any) => {
-      onClick(e.lnglat.getLat(), e.lnglat.getLng());
-    });
+    if (!map) return;
+
+    // Remove old handler if exists
+    const oldHandler = clickHandlerRef.current;
+    if (oldHandler) {
+      map.off('click', oldHandler);
+      clickHandlerRef.current = null;
+    }
+
+    // Add new handler if onClick is provided
+    if (onClick) {
+      const handler = (e: any) => {
+        onClick(e.lnglat.getLat(), e.lnglat.getLng());
+      };
+      clickHandlerRef.current = handler;
+      map.on('click', handler);
+    }
   }, [onClick]);
 
   // 计算视野外好友及其边缘位置

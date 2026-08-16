@@ -19,7 +19,7 @@ import {
   getNetworkType,
   parseDeviceModel,
 } from '@client/src/lib/utils/device';
-import { getProfile, setProfile } from '@client/src/lib/storage';
+import { getProfile } from '@client/src/lib/storage';
 import { APP_CONFIG } from '@client/src/config';
 import StatusPicker from './StatusPicker';
 import StatusSettingDialog from '@client/src/pages/ProfilePage/StatusSettingDialog';
@@ -31,6 +31,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@client/src/components/ui/sheet';
+import { useProfile } from '@client/src/hooks/useProfile';
 import { usePlaces, type Place } from '@client/src/hooks/usePlaces';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -73,20 +74,16 @@ const MapPage: React.FC = () => {
   } = usePoke();
 
   const [friends, setFriends] = useState<FriendInfo[]>([]);
-  const [myStatus, setMyStatus] = useState<string>('空闲中');
   const [selfActionOpen, setSelfActionOpen] = useState<boolean>(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState<boolean>(false);
   const [placeEditorOpen, setPlaceEditorOpen] = useState<boolean>(false);
   const [placeListOpen, setPlaceListOpen] = useState<boolean>(false);
   const { places, addPlace, deletePlace } = usePlaces();
+  const { profile, updateStatus } = useProfile();
+  const myStatus = profile?.status || '空闲中';
 
-  // Load profile + friends on mount
+  // Load friends on mount
   useEffect(() => {
-    const profile = getProfile();
-    if (profile?.status) {
-      setMyStatus(profile.status);
-    }
-
     // Load friends list from IDB
     import('@client/src/lib/storage')
       .then(({ friendsStore }) => friendsStore.getAll<FriendInfo>())
@@ -435,26 +432,10 @@ const MapPage: React.FC = () => {
         <StatusPicker
           currentStatus={myStatus}
           onSelect={(status) => {
-            setMyStatus(status);
-            const current = getProfile();
-            if (current) {
-              setProfile({ ...current, status });
-            }
-            send('status:update', { status, musicState: current?.musicState || null });
+            void updateStatus(status);
           }}
           onSaveWithDuration={(status, durationMinutes) => {
-            setMyStatus(status);
-            const current = getProfile();
-            if (current) {
-              setProfile({ ...current, status });
-            }
-            send('status:update', { status, musicState: current?.musicState || null });
-            if (durationMinutes && durationMinutes > 0) {
-              const expireAt = Date.now() + durationMinutes * 60 * 1000;
-              localStorage.setItem('fl_status_expire_at', String(expireAt));
-            } else {
-              localStorage.removeItem('fl_status_expire_at');
-            }
+            void updateStatus(status, durationMinutes);
           }}
         />
       </div>
@@ -542,15 +523,7 @@ const MapPage: React.FC = () => {
         onOpenChange={setStatusDialogOpen}
         currentStatus={myStatus}
         onSave={(status, durationMinutes) => {
-          setMyStatus(status);
-          const current = getProfile();
-          if (current) {
-            setProfile({ ...current, status });
-          }
-          send('status:update', {
-            status,
-            musicState: current?.musicState || null,
-          });
+          void updateStatus(status, durationMinutes);
         }}
       />
 

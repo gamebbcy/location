@@ -118,8 +118,8 @@ export function useFriendPresence(): UseFriendPresenceReturn {
           const perm = await ensureNotificationPermission();
           if (perm === 'granted') {
             try {
-              new Notification('好友已关闭定位', {
-                body: `${nickname} 关闭了位置共享`,
+              new Notification('好友已离线', {
+                body: `${nickname} 暂时离开，可能已断开连接`,
                 ...({ vibrate: [200, 100, 200] } as NotificationOptions),
               });
             } catch (err) {

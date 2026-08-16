@@ -71,6 +71,8 @@ const AUTO_DETECT_LS_KEY = 'fl_music_auto_detect';
 
 // 模块级共享状态：多页面实例共享 auto-detect 开关
 let autoDetectEnabled = false;
+const autoDetectSubscribers = new Set<(v: boolean) => void>();
+
 try {
   autoDetectEnabled = localStorage.getItem(AUTO_DETECT_LS_KEY) === '1';
 } catch {
@@ -84,11 +86,23 @@ function setAutoDetectEnabled(value: boolean): void {
   } catch {
     // ignore
   }
+  // 通知所有实例同步状态
+  for (const subscriber of autoDetectSubscribers) {
+    subscriber(value);
+  }
 }
 
 export function useMusicState(): UseMusicStateReturn {
   const { profile, updateMusicState } = useProfile();
   const [isAutoDetecting, setIsAutoDetecting] = useState<boolean>(autoDetectEnabled);
+
+  // 订阅模块级 auto-detect 状态变更，保持多实例同步
+  useEffect(() => {
+    autoDetectSubscribers.add(setIsAutoDetecting);
+    return () => {
+      autoDetectSubscribers.delete(setIsAutoDetecting);
+    };
+  }, []);
 
   const pollTimerRef = useRef<number | null>(null);
   const clearTimerRef = useRef<number | null>(null);

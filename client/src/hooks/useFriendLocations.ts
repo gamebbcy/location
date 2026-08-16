@@ -83,7 +83,7 @@ export function useFriendLocations(): UseFriendLocationsReturn {
         updateOnline(payload.userId, true);
         // Request location for newly online friend
         if (!requestedRef.current.has(payload.userId)) {
-          send('friend:location:request', { userId: payload.userId });
+          send('friend:location:request', { friendUserId: payload.userId });
         }
       }
     },
@@ -160,6 +160,10 @@ export function useFriendLocations(): UseFriendLocationsReturn {
 
   const dismissAlertNotification = useCallback((): void => {
     setAlertNotification(null);
+    if (alertTimerRef.current !== null) {
+      window.clearTimeout(alertTimerRef.current);
+      alertTimerRef.current = null;
+    }
   }, []);
 
   const isOnline = useCallback(
@@ -171,7 +175,7 @@ export function useFriendLocations(): UseFriendLocationsReturn {
 
   const requestFriendLocation = useCallback(
     (userId: string) => {
-      send('friend:location:request', { userId });
+      send('friend:location:request', { friendUserId: userId });
       requestedRef.current.add(userId);
     },
     [send],
@@ -213,6 +217,16 @@ export function useFriendLocations(): UseFriendLocationsReturn {
       void requestAllFriendsLocations();
     }
   }, [isConnected, connect, requestAllFriendsLocations]);
+
+  // Cleanup alert timer on unmount
+  useEffect(() => {
+    return () => {
+      if (alertTimerRef.current !== null) {
+        window.clearTimeout(alertTimerRef.current);
+        alertTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Periodically check for stale (offline) friends
   useEffect(() => {

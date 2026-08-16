@@ -58,7 +58,7 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   const login = useCallback((phone: string): void => {
-    const userId = `u_${hashCode(phone)}_${Date.now().toString(36)}`;
+    const userId = `u_${hashCode(phone)}`;
     const token = generateToken();
 
     const authState: AuthState = { phone, userId, token };
