@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { type MusicState } from '@client/src/lib/storage';
 import { useProfile } from './useProfile';
