@@ -10,6 +10,8 @@ import {
 import { filterSensitiveWords } from '@client/src/lib/utils/sensitive';
 import { APP_CONFIG } from '@client/src/config';
 import { useWebSocket } from './useWebSocket';
+import { isSupabaseConfigured } from '@client/src/lib/supabase';
+import { profileRepository } from '@client/src/data/profile-repository';
 
 interface UseProfileReturn {
   profile: ProfileState | null;
@@ -22,17 +24,16 @@ interface UseProfileReturn {
   updateMusicState: (musicState: MusicState | null) => Promise<void>;
 }
 
-/** 保存时统一走的敏感词过滤（内置 + 自定义词库） */
+const STATUS_EXPIRE_KEY = 'fl_status_expire_at';
+
 function filterOnSave(text: string): string {
   try {
-    const customWords = getSensitiveWords();
-    return filterSensitiveWords(text, customWords);
+    return filterSensitiveWords(text, getSensitiveWords());
   } catch {
     return text;
   }
 }
 
-/** 格式化剩余时间：X小时Y分 / X分钟 / 已过期 */
 function formatRemaining(ms: number): string {
   if (ms <= 0) return '已过期';
   const totalMinutes = Math.floor(ms / 60000);
@@ -43,10 +44,8 @@ function formatRemaining(ms: number): string {
   return `${minutes}分钟`;
 }
 
-function getInitialProfile(): ProfileState {
-  const stored = getProfile();
-  if (stored) return stored;
-  return {
+function initialProfile(): ProfileState {
+  return getProfile() ?? {
     nickname: APP_CONFIG.defaultNickname,
     avatar: '',
     status: '在线',
@@ -54,191 +53,118 @@ function getInitialProfile(): ProfileState {
   };
 }
 
-const STATUS_EXPIRE_KEY = 'fl_status_expire_at';
-
 export function useProfile(): UseProfileReturn {
-  const [profile, setProfileState] = useState<ProfileState | null>(null);
-  const [statusExpireAt, setStatusExpireAt] = useState<number | null>(null);
+  const initial = useRef(initialProfile());
+  const [profile, setProfileState] = useState<ProfileState>(initial.current);
+  const profileRef = useRef(initial.current);
+  const [statusExpireAt, setStatusExpireAt] = useState<number | null>(() => {
+    const stored = localStorage.getItem(STATUS_EXPIRE_KEY);
+    return stored ? Number(stored) : null;
+  });
   const [statusRemainingText, setStatusRemainingText] = useState<string | null>(null);
   const statusTimerRef = useRef<number | null>(null);
-  const countdownRef = useRef<number | null>(null);
   const { send } = useWebSocket();
 
-  // 加载资料
-  const loadProfile = useCallback((): void => {
-    const stored = getInitialProfile();
-    setProfileState(stored);
-    const expireStr = localStorage.getItem(STATUS_EXPIRE_KEY);
-    setStatusExpireAt(expireStr ? Number(expireStr) : null);
+  const applyProfile = useCallback((next: ProfileState) => {
+    profileRef.current = next;
+    setProfileState(next);
+    setStoredProfile(next);
   }, []);
 
-  // 初始化加载
+  const saveProfile = useCallback((next: ProfileState) => {
+    applyProfile(next);
+    if (isSupabaseConfigured) {
+      void profileRepository.updateMine(next).catch((error) => {
+        logger.error('同步个人资料到 Supabase 失败', error);
+      });
+    }
+  }, [applyProfile]);
+
+  const notifyStatusUpdate = useCallback((next: ProfileState) => {
+    send('status:update', { status: next.status, musicState: next.musicState });
+  }, [send]);
+
+  const loadProfile = useCallback(() => {
+    const cached = initialProfile();
+    applyProfile(cached);
+    if (isSupabaseConfigured) {
+      void profileRepository.getMine()
+        .then(applyProfile)
+        .catch((error) => logger.error('从 Supabase 加载个人资料失败', error));
+    }
+  }, [applyProfile]);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+
   useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+    if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current);
+    if (!statusExpireAt) return;
 
-  // 持久化
-  const persist = useCallback((next: ProfileState): void => {
-    try {
-      setStoredProfile(next);
-    } catch (err) {
-      logger.error('persist profile failed', err);
+    const delay = statusExpireAt - Date.now();
+    if (delay <= 0) {
+      const next = { ...profileRef.current, status: '在线' };
+      saveProfile(next);
+      notifyStatusUpdate(next);
+      setStatusExpireAt(null);
+      localStorage.removeItem(STATUS_EXPIRE_KEY);
+      return;
     }
-  }, []);
 
-  // 通过 WebSocket 通知好友状态更新
-  const notifyStatusUpdate = useCallback(
-    (next: ProfileState): void => {
-      try {
-        send('status:update', {
-          status: next.status,
-          musicState: next.musicState,
-        });
-      } catch (err) {
-        logger.warn('ws status:update send failed', err);
-      }
-    },
-    [send],
-  );
+    statusTimerRef.current = window.setTimeout(() => {
+      const next = { ...profileRef.current, status: '在线' };
+      saveProfile(next);
+      notifyStatusUpdate(next);
+      setStatusExpireAt(null);
+      localStorage.removeItem(STATUS_EXPIRE_KEY);
+    }, delay);
 
-  // 清除状态定时器
-  const clearStatusTimer = useCallback((): void => {
-    if (statusTimerRef.current !== null) {
-      window.clearTimeout(statusTimerRef.current);
-      statusTimerRef.current = null;
-    }
-  }, []);
+    return () => {
+      if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current);
+    };
+  }, [notifyStatusUpdate, saveProfile, statusExpireAt]);
 
-  // 设置状态定时器
-  const setupStatusTimer = useCallback(
-    (expireAt: number): void => {
-      clearStatusTimer();
-      const delay = expireAt - Date.now();
-      if (delay <= 0) {
-        // 已过期，立即恢复
-        setProfileState((prev) => {
-          if (!prev) return prev;
-          const next: ProfileState = { ...prev, status: '在线' };
-          persist(next);
-          return next;
-        });
-        setStatusExpireAt(null);
-        localStorage.removeItem(STATUS_EXPIRE_KEY);
-        return;
-      }
-      statusTimerRef.current = window.setTimeout(() => {
-        setProfileState((prev) => {
-          if (!prev) return prev;
-          const next: ProfileState = { ...prev, status: '在线' };
-          persist(next);
-          notifyStatusUpdate(next);
-          return next;
-        });
-        setStatusExpireAt(null);
-        localStorage.removeItem(STATUS_EXPIRE_KEY);
-        statusTimerRef.current = null;
-      }, delay);
-    },
-    [clearStatusTimer, persist, notifyStatusUpdate],
-  );
-
-  // 初始化 / expireAt 变化时设置定时器
-  useEffect(() => {
-    if (statusExpireAt) {
-      setupStatusTimer(statusExpireAt);
-    } else {
-      clearStatusTimer();
-    }
-    return clearStatusTimer;
-  }, [statusExpireAt, setupStatusTimer, clearStatusTimer]);
-
-  // 剩余时间倒计时（每分钟刷新文案）
   useEffect(() => {
     if (!statusExpireAt) {
       setStatusRemainingText(null);
       return;
     }
-
-    const update = (): void => {
+    const update = () => {
       const remaining = statusExpireAt - Date.now();
-      if (remaining <= 0) {
-        setStatusRemainingText(null);
-        return;
-      }
-      setStatusRemainingText(`还剩 ${formatRemaining(remaining)}`);
+      setStatusRemainingText(remaining > 0 ? `还剩 ${formatRemaining(remaining)}` : null);
     };
-
     update();
-    countdownRef.current = window.setInterval(update, 60 * 1000);
-    return () => {
-      if (countdownRef.current !== null) {
-        window.clearInterval(countdownRef.current);
-        countdownRef.current = null;
-      }
-    };
+    const interval = window.setInterval(update, 60_000);
+    return () => window.clearInterval(interval);
   }, [statusExpireAt]);
 
-  const updateNickname = useCallback(
-    async (nickname: string): Promise<void> => {
-      const filtered = filterOnSave(nickname);
-      setProfileState((prev) => {
-        if (!prev) return prev;
-        const next: ProfileState = { ...prev, nickname: filtered };
-        persist(next);
-        notifyStatusUpdate(next);
-        return next;
-      });
-    },
-    [persist, notifyStatusUpdate],
-  );
+  const updateNickname = useCallback(async (nickname: string) => {
+    saveProfile({ ...profileRef.current, nickname: filterOnSave(nickname) });
+  }, [saveProfile]);
 
-  const updateAvatar = useCallback(
-    async (avatar: string): Promise<void> => {
-      setProfileState((prev) => {
-        if (!prev) return prev;
-        const next: ProfileState = { ...prev, avatar };
-        persist(next);
-        return next;
-      });
-    },
-    [persist],
-  );
+  const updateAvatar = useCallback(async (avatar: string) => {
+    saveProfile({ ...profileRef.current, avatar });
+  }, [saveProfile]);
 
-  const updateStatus = useCallback(
-    async (status: string, durationMinutes?: number): Promise<void> => {
-      const filtered = filterOnSave(status);
-      setProfileState((prev) => {
-        if (!prev) return prev;
-        const next: ProfileState = { ...prev, status: filtered };
-        persist(next);
-        notifyStatusUpdate(next);
-        return next;
-      });
+  const updateStatus = useCallback(async (status: string, durationMinutes?: number) => {
+    const next = { ...profileRef.current, status: filterOnSave(status) };
+    saveProfile(next);
+    notifyStatusUpdate(next);
 
-      if (durationMinutes && durationMinutes > 0) {
-        const expireAt = Date.now() + durationMinutes * 60 * 1000;
-        setStatusExpireAt(expireAt);
-        localStorage.setItem(STATUS_EXPIRE_KEY, String(expireAt));
-      } else {
-        setStatusExpireAt(null);
-        localStorage.removeItem(STATUS_EXPIRE_KEY);
-      }
-    },
-    [persist, notifyStatusUpdate],
-  );
+    if (durationMinutes && durationMinutes > 0) {
+      const expiresAt = Date.now() + durationMinutes * 60_000;
+      setStatusExpireAt(expiresAt);
+      localStorage.setItem(STATUS_EXPIRE_KEY, String(expiresAt));
+    } else {
+      setStatusExpireAt(null);
+      localStorage.removeItem(STATUS_EXPIRE_KEY);
+    }
+  }, [notifyStatusUpdate, saveProfile]);
 
-  const updateMusicState = useCallback(
-    async (musicState: MusicState | null): Promise<void> => {
-      setProfileState((prev) => {
-        if (!prev) return prev;
-        const next: ProfileState = { ...prev, musicState };
-        persist(next);
-        notifyStatusUpdate(next);
-        return next;
-      });
-    },
-    [persist, notifyStatusUpdate],
-  );
+  const updateMusicState = useCallback(async (musicState: MusicState | null) => {
+    const next = { ...profileRef.current, musicState };
+    saveProfile(next);
+    notifyStatusUpdate(next);
+  }, [notifyStatusUpdate, saveProfile]);
 
   return {
     profile,

@@ -1,109 +1,119 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import {
-  getAuth,
-  setAuth as setStoredAuth,
   clearAuth as clearStoredAuth,
-  getProfile,
-  setProfile,
-  getOnboarding,
-  getPermissions,
-  setPermissions,
+  setAuth as setStoredAuth,
   type AuthState,
-  type ProfileState,
-  type PermissionState,
 } from '@client/src/lib/storage';
-import { APP_CONFIG } from '@client/src/config';
+import {
+  assertSupabaseConfigured,
+  isSupabaseConfigured,
+  supabase,
+} from '@client/src/lib/supabase';
 
-/**
- * 简单字符串 hashCode，用于从手机号生成稳定的 userId 前缀
- */
-function hashCode(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // 转为 32 位整数
-  }
-  return Math.abs(hash).toString(36);
-}
-
-/**
- * 生成随机字符串 token
- */
-function generateToken(): string {
-  const rand = Math.random().toString(36).slice(2, 10);
-  const ts = Date.now().toString(36);
-  return `${rand}${ts}`;
-}
-
-interface UseAuthReturn {
+interface AuthContextValue {
+  isLoading: boolean;
   isLoggedIn: boolean;
   user: AuthState | null;
-  login: (phone: string) => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   checkAuth: () => boolean;
 }
 
-export function useAuth(): UseAuthReturn {
-  const [user, setUser] = useState<AuthState | null>(() =>
-    typeof window !== 'undefined' ? getAuth() : null,
-  );
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-  const isLoggedIn = user !== null;
+function sessionToAuth(session: Session): AuthState {
+  return {
+    email: session.user.email ?? '',
+    userId: session.user.id,
+    token: session.access_token,
+  };
+}
 
-  const checkAuth = useCallback((): boolean => {
-    const stored = getAuth();
-    return stored !== null;
-  }, []);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthState | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = useCallback((phone: string): void => {
-    const userId = `u_${hashCode(phone)}`;
-    const token = generateToken();
-
-    const authState: AuthState = { phone, userId, token };
-    setStoredAuth(authState);
-    setUser(authState);
-
-    // 初始化 profile（若不存在）
-    const existingProfile: ProfileState | null = getProfile();
-    if (!existingProfile) {
-      const tail4 = phone.slice(-4);
-      const defaultNickname = tail4
-        ? `用户${tail4}`
-        : APP_CONFIG.defaultNickname;
-      setProfile({
-        nickname: defaultNickname,
-        avatar: '',
-        status: '在线',
-        musicState: null,
-      });
+  const applySession = useCallback((session: Session | null) => {
+    if (!session) {
+      clearStoredAuth();
+      setUser(null);
+      return;
     }
 
-    // 初始化 permissions（若不存在）
-    const existingPerms: PermissionState = getPermissions();
-    if (!existingPerms) {
-      setPermissions({ location: false, notification: false });
-    }
-
-    logger.info('用户登录成功', { userId });
+    const next = sessionToAuth(session);
+    setStoredAuth(next);
+    setUser(next);
   }, []);
 
-  const logout = useCallback((): void => {
-    clearStoredAuth();
-    setUser(null);
-    logger.info('用户已登出');
-  }, []);
-
-  // 初始化时同步一次（防止 SSR / 首帧延迟）
   useEffect(() => {
-    const stored = getAuth();
-    if (stored && !user) {
-      setUser(stored);
+    if (!isSupabaseConfigured) {
+      clearStoredAuth();
+      setIsLoading(false);
+      return;
     }
-  }, [user]);
 
-  return { isLoggedIn, user, login, logout, checkAuth };
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (error) logger.warn('恢复登录状态失败', error);
+      applySession(data.session);
+      setIsLoading(false);
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+      setIsLoading(false);
+    });
+
+    return () => data.subscription.unsubscribe();
+  }, [applySession]);
+
+  const login = useCallback(async (email: string, password: string) => {
+    assertSupabaseConfigured();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) throw error;
+    if (!data.session) throw new Error('登录失败，请稍后再试');
+    applySession(data.session);
+    logger.info('用户登录成功', { userId: data.user.id });
+  }, [applySession]);
+
+  const logout = useCallback(async () => {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    }
+    applySession(null);
+    logger.info('用户已登出');
+  }, [applySession]);
+
+  const value = useMemo<AuthContextValue>(() => ({
+    isLoading,
+    isLoggedIn: user !== null,
+    user,
+    login,
+    logout,
+    checkAuth: () => user !== null,
+  }), [isLoading, login, logout, user]);
+
+  return createElement(AuthContext.Provider, { value }, children);
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth 必须在 AuthProvider 内使用');
+  return context;
 }
 
 export default useAuth;

@@ -4,7 +4,7 @@ import { logger } from '@lark-apaas/client-toolkit/logger';
 // ============ Types ============
 
 export interface AuthState {
-  phone: string;
+  email: string;
   userId: string;
   token: string;
 }

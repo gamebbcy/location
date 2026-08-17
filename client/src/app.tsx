@@ -12,19 +12,24 @@ import FriendDetailPage from './pages/FriendDetailPage/FriendDetailPage';
 import ShortcutsPage from './pages/ShortcutsPage/ShortcutsPage';
 import FakeCallPage from './pages/FakeCallPage/FakeCallPage';
 import AddFriendPage from './pages/AddFriendPage/AddFriendPage';
-import {
-  getAuth,
-  getOnboarding,
-} from '@client/src/lib/storage';
+import { getOnboarding } from '@client/src/lib/storage';
+import { useAuth } from '@client/src/hooks/useAuth';
+
+const AuthLoading = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center text-sm text-muted-foreground">
+    正在确认登录状态…
+  </div>
+);
 
 /**
  * 需登录的路由包装：未登录跳 /login，首次登录跳 /onboarding
  */
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const auth = getAuth();
+  const { isLoading, isLoggedIn } = useAuth();
   const onboardingDone = getOnboarding();
 
-  if (!auth) {
+  if (isLoading) return <AuthLoading />;
+  if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
   }
   if (!onboardingDone) {
@@ -37,8 +42,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
  * 登录页守卫：已登录用户直接跳 /map
  */
 const LoginRoute: React.FC = () => {
-  const auth = getAuth();
-  if (auth) {
+  const { isLoading, isLoggedIn } = useAuth();
+  if (isLoading) return <AuthLoading />;
+  if (isLoggedIn) {
     return <Navigate to="/map" replace />;
   }
   return <LoginPage />;
@@ -48,9 +54,10 @@ const LoginRoute: React.FC = () => {
  * 引导页守卫：未登录跳 /login，已完成引导跳 /map
  */
 const OnboardingRoute: React.FC = () => {
-  const auth = getAuth();
+  const { isLoading, isLoggedIn } = useAuth();
   const onboardingDone = getOnboarding();
-  if (!auth) {
+  if (isLoading) return <AuthLoading />;
+  if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
   }
   if (onboardingDone) {

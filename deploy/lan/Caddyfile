@@ -1,0 +1,32 @@
+{
+    default_sni 192.168.1.3
+}
+
+http://192.168.1.3 {
+    redir https://192.168.1.3{uri} permanent
+}
+
+https://192.168.1.3 {
+    tls internal {
+        key_type rsa2048
+    }
+
+    @supabase_api path /auth/v1/* /rest/v1/* /graphql/v1 /realtime/v1/* /storage/v1/* /functions/v1/* /mcp /sso/*
+    handle @supabase_api {
+        reverse_proxy api-gw:8000
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+
+    header {
+        -Server
+        Cache-Control "no-store"
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+    }
+}

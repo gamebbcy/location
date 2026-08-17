@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight,
@@ -21,13 +21,14 @@ import { useProfile } from '@client/src/hooks/useProfile';
 import { useTheme } from '@client/src/hooks/useTheme';
 import { useMusicState, getMusicAppLabel } from '@client/src/hooks/useMusicState';
 import {
-  clearAuth,
   friendsStore,
   trajectoriesStore,
   placesStore,
   shortcutsStore,
   type ThemeMode,
 } from '@client/src/lib/storage';
+import { useAuth } from '@client/src/hooks/useAuth';
+import { useWebSocket } from '@client/src/hooks/useWebSocket';
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,8 @@ import MusicSettingDialog from './MusicSettingDialog';
 import ThemeSelectSheet from './ThemeSelectSheet';
 import SensitiveWordsDialog from './SensitiveWordsDialog';
 import { Image } from '@client/src/components/ui/image';
+import { Switch } from '@client/src/components/ui/switch';
+import { sharingRepository } from '@client/src/data/sharing-repository';
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -53,6 +56,8 @@ const ProfilePage: React.FC = () => {
   const { musicState, setMusic, clearMusic, isAutoDetecting, startAutoDetect, stopAutoDetect } =
     useMusicState();
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const { logout } = useAuth();
+  const { disconnect } = useWebSocket();
 
   const [nicknameDialogOpen, setNicknameDialogOpen] = useState<boolean>(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState<boolean>(false);
@@ -64,6 +69,28 @@ const ProfilePage: React.FC = () => {
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState<boolean>(false);
   const [clearDataDialogOpen, setClearDataDialogOpen] = useState<boolean>(false);
   const [clearing, setClearing] = useState<boolean>(false);
+  const [locationSharing, setLocationSharing] = useState(true);
+  const [sharingSaving, setSharingSaving] = useState(false);
+
+  useEffect(() => {
+    void sharingRepository.getMine()
+      .then(setLocationSharing)
+      .catch((error) => logger.error('读取位置共享设置失败', error));
+  }, []);
+
+  const handleLocationSharingChange = async (enabled: boolean): Promise<void> => {
+    const previous = locationSharing;
+    setLocationSharing(enabled);
+    setSharingSaving(true);
+    try {
+      await sharingRepository.setMine(enabled);
+    } catch (error) {
+      setLocationSharing(previous);
+      logger.error('更新位置共享设置失败', error);
+    } finally {
+      setSharingSaving(false);
+    }
+  };
 
   // 头像上传
   const handleAvatarClick = (): void => {
@@ -99,9 +126,14 @@ const ProfilePage: React.FC = () => {
   };
 
   // 退出登录
-  const handleLogout = (): void => {
-    clearAuth();
-    navigate('/login', { replace: true });
+  const handleLogout = async (): Promise<void> => {
+    try {
+      disconnect();
+      await logout();
+      navigate('/login', { replace: true });
+    } catch (err) {
+      logger.error('退出登录失败', err);
+    }
   };
 
   // 清除所有数据（保留登录状态）
@@ -114,11 +146,9 @@ const ProfilePage: React.FC = () => {
         placesStore.clear(),
         shortcutsStore.clear(),
       ]);
-      // 清除 localStorage 中除登录外的数据
-      const auth = localStorage.getItem('fl_auth');
-      localStorage.clear();
-      if (auth) {
-        localStorage.setItem('fl_auth', auth);
+      // 只清理 fl_ 前缀的应用缓存，保留 Supabase 登录会话。
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('fl_') && key !== 'fl_auth') localStorage.removeItem(key);
       }
       logger.info('所有本地数据已清除');
       setClearDataDialogOpen(false);
@@ -409,7 +439,7 @@ const ProfilePage: React.FC = () => {
             </Button>
             <Button
               variant="destructive"
-              onClick={handleLogout}
+              onClick={() => { void handleLogout(); }}
               className="rounded-xl"
             >
               退出登录
@@ -447,9 +477,18 @@ const ProfilePage: React.FC = () => {
             <DialogTitle>隐私设置</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground space-y-2">
-            <p>所有数据保存在本地，不会上传到任何服务器。</p>
-            <p>位置信息仅在你和好友之间共享，我们无法查看。</p>
-            <p>你可以随时清除所有本地数据。</p>
+            <div className="mb-4 flex items-center justify-between gap-4 rounded-xl bg-accent/50 p-3">
+              <div>
+                <div className="font-medium text-foreground">向好友共享实时位置</div>
+                <div className="mt-0.5 text-xs">关闭后立即停止本设备上报，并撤回云端查看授权。</div>
+              </div>
+              <Switch checked={locationSharing} disabled={sharingSaving}
+                onCheckedChange={(enabled) => { void handleLocationSharingChange(enabled); }}
+                aria-label="向好友共享实时位置" />
+            </div>
+            <p>账号资料、好友关系和共享授权保存在 Supabase 数据库，并受行级权限控制。</p>
+            <p>实时位置只通过好友私有通道转发，不写入数据库，也不提供历史回放。</p>
+            <p>轨迹、地点和快捷指令等个性化数据只保存在当前设备，可随时清除。</p>
           </div>
           <DialogFooter>
             <Button
@@ -468,7 +507,7 @@ const ProfilePage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>清除数据</DialogTitle>
             <DialogDescription>
-              确认清除所有本地数据吗？包括好友、消息、轨迹、快捷指令等。登录状态将保留。此操作不可撤销。
+              确认清除当前设备上的缓存、轨迹、地点和快捷指令吗？云端账号与好友关系、登录状态均会保留。此操作不可撤销。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -64,3 +64,7 @@ pnpm-lock.yaml
 # Agent files
 .agent/
 .npm_cache
+
+# Local LAN deployment runtime artifacts
+deploy/lan/certs/
+deploy/lan/private/

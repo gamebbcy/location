@@ -1,8 +1,16 @@
+import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import BottomNav from "./BottomNav";
+import { useWebSocket } from "@client/src/hooks/useWebSocket";
 
 const Layout = () => {
   const location = useLocation();
+  const { connect, isConnected } = useWebSocket();
+
+  // Keep presence alive on every protected page, including friend details.
+  useEffect(() => {
+    if (!isConnected) connect();
+  }, [connect, isConnected]);
 
   const isFullscreenPage =
     location.pathname === "/map" ||

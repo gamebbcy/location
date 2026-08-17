@@ -1,0 +1,30 @@
+services:
+  api-gw:
+    ports: !reset []
+
+  supavisor:
+    ports: !reset []
+
+  db:
+    volumes:
+      - H:/fwfwfwq/location/supabase/migrations/202608170001_initial.sql:/docker-entrypoint-initdb.d/migrations/999-location-guardian.sql:ro
+
+  caddy:
+    container_name: location-guardian-caddy
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      api-gw:
+        condition: service_healthy
+    ports:
+      - "192.168.1.3:80:80"
+      - "192.168.1.3:443:443"
+    volumes:
+      - H:/fwfwfwq/location/deploy/lan/Caddyfile:/etc/caddy/Caddyfile:ro
+      - H:/fwfwfwq/location/dist/client:/srv:ro
+      - location_guardian_caddy_data:/data
+      - location_guardian_caddy_config:/config
+
+volumes:
+  location_guardian_caddy_data:
+  location_guardian_caddy_config:

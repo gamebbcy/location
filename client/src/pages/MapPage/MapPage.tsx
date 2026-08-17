@@ -39,6 +39,7 @@ import type {
   FriendLocationUpdate,
   LocationUpdatePayload,
 } from '@shared/api.interface';
+import { friendRepository } from '@client/src/data/friend-repository';
 
 interface FriendInfo {
   userId: string;
@@ -84,9 +85,8 @@ const MapPage: React.FC = () => {
 
   // Load friends on mount
   useEffect(() => {
-    // Load friends list from IDB
-    import('@client/src/lib/storage')
-      .then(({ friendsStore }) => friendsStore.getAll<FriendInfo>())
+    friendRepository
+      .syncCache()
       .then((list) => setFriends(list))
       .catch((err: unknown) => {
         logger.error('MapPage: load friends failed', err);

@@ -58,7 +58,7 @@ const AddFriendPage: React.FC = () => {
     countdownTimerRef.current = window.setInterval(() => {
       setCountdownSec((prev) => {
         if (prev === null || prev <= 1) {
-          handleRefresh(true);
+          void handleRefresh(true);
           return null;
         }
         return prev - 1;
@@ -245,17 +245,17 @@ const AddFriendPage: React.FC = () => {
       toast.error('复制失败，请手动复制');
     }
 
-    // 复制后启动/重置 3 分钟倒计时刷新
-    const result = refreshMyInviteCode();
-    setCountdownSec(Math.ceil((result.expiresAt - Date.now()) / 1000));
-  }, [myInviteCode, refreshMyInviteCode]);
+    if (myInviteExpiresAt) {
+      setCountdownSec(Math.max(0, Math.ceil((myInviteExpiresAt - Date.now()) / 1000)));
+    }
+  }, [myInviteCode, myInviteExpiresAt]);
 
   const handleRefresh = useCallback(
-    (auto = false): void => {
+    async (auto = false): Promise<void> => {
       if (refreshing) return;
       setRefreshing(true);
       try {
-        const result = refreshMyInviteCode();
+        const result = await refreshMyInviteCode();
         setCountdownSec(Math.ceil((result.expiresAt - Date.now()) / 1000));
         setRevealed(false);
         if (!auto) {
@@ -467,7 +467,7 @@ const AddFriendPage: React.FC = () => {
             </Button>
             <Button
               className="flex-1 h-11 rounded-xl font-medium"
-              onClick={() => handleRefresh(false)}
+              onClick={() => { void handleRefresh(false); }}
               disabled={refreshing}
             >
               <RefreshCw

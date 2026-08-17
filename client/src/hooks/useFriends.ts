@@ -1,195 +1,122 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { friendRepository } from '@client/src/data/friend-repository';
+import type { Friend } from '@shared/api.interface';
+import { useWebSocket } from './useWebSocket';
 import { friendsStore } from '@client/src/lib/storage';
-import {
-  getMyInviteCode,
-  refreshInviteCode,
-  verifyInviteCode,
-} from '@client/src/lib/utils/invite';
-import { APP_CONFIG } from '@client/src/config';
-import type { Friend, MotionState } from '@shared/api.interface';
 
 export type { Friend };
 
-// 简单的邀请码→userId 哈希（本地模拟，双方相同邀请码→相同 userId）
-function hashInviteToUserId(code: string): string {
-  let hash = 0;
-  const upper = code.toUpperCase();
-  for (let i = 0; i < upper.length; i++) {
-    hash = (hash * 31 + upper.charCodeAt(i)) >>> 0;
-  }
-  return `user_${hash.toString(36).padStart(10, '0')}`;
+function sortFriends(list: Friend[]): Friend[] {
+  return [...list].sort((a, b) => b.addedAt - a.addedAt);
 }
-
-// 模拟搜索用户池（本地 demo）
-const MOCK_SEARCH_USERS = [
-  { nickname: '小太阳', avatar: '#f59e0b' },
-  { nickname: '月光下的猫', avatar: '#8b5cf6' },
-  { nickname: '海边的风', avatar: '#0ea5e9' },
-  { nickname: '山间小鹿', avatar: '#10b981' },
-  { nickname: '星河漫步', avatar: '#ec4899' },
-  { nickname: '清晨露水', avatar: '#14b8a6' },
-];
 
 export function useFriends() {
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [myInviteCode, setMyInviteCode] = useState<string>('');
+  const [myInviteCode, setMyInviteCode] = useState('');
   const [myInviteExpiresAt, setMyInviteExpiresAt] = useState<number | null>(null);
+  const { connect, isConnected, on, off, send } = useWebSocket();
 
   const loadFriends = useCallback(async () => {
     try {
-      const list: Friend[] = await friendsStore.getAll<Friend>();
-      setFriends(
-        list.sort((a: Friend, b: Friend) => {
-          if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
-          return b.addedAt - a.addedAt;
-        }),
-      );
-    } catch (err) {
-      logger.error('load friends failed', err);
+      setFriends(sortFriends(await friendRepository.syncCache()));
+    } catch (error) {
+      logger.error('load friends failed', error);
+      throw error;
     }
   }, []);
 
-  const onlineFriends = useMemo<Friend[]>(
-    () => friends.filter((f: Friend) => f.isOnline),
-    [friends],
-  );
-
-  const offlineFriends = useMemo<Friend[]>(
-    () => friends.filter((f: Friend) => !f.isOnline),
-    [friends],
-  );
-
-  const isFriend = useCallback(
-    (userId: string): boolean => {
-      return friends.some((f: Friend) => f.userId === userId);
-    },
-    [friends],
-  );
-
-  const loadMyInviteCode = useCallback((): void => {
-    const info = getMyInviteCode();
-    setMyInviteCode(info.code);
-    setMyInviteExpiresAt(info.expiresAt);
-  }, []);
-
-  const refreshMyInviteCode = useCallback((): { code: string; expiresAt: number } => {
-    const result = refreshInviteCode();
+  const loadMyInviteCode = useCallback(async () => {
+    const result = await friendRepository.createInvite();
     setMyInviteCode(result.code);
     setMyInviteExpiresAt(result.expiresAt);
     return result;
   }, []);
 
+  const refreshMyInviteCode = useCallback(async () => loadMyInviteCode(), [loadMyInviteCode]);
+
   useEffect(() => {
-    loadMyInviteCode();
-    loadFriends();
-  }, [loadMyInviteCode, loadFriends]);
+    void Promise.all([loadFriends(), loadMyInviteCode()]).catch((error) => {
+      logger.error('初始化好友数据失败', error);
+    });
+  }, [loadFriends, loadMyInviteCode]);
 
-  const addFriend = useCallback(
-    async (
-      inviteCode: string,
-      nickname: string,
-      avatar: string,
-      remark?: string,
-    ): Promise<Friend> => {
-      const code = inviteCode.trim().toUpperCase();
-      if (!code) throw new Error('邀请码不能为空');
-      if (!verifyInviteCode(code)) throw new Error('邀请码格式不正确');
+  useEffect(() => {
+    if (!isConnected) connect();
+  }, [connect, isConnected]);
 
-      const userId = hashInviteToUserId(code);
+  useEffect(() => {
+    const setOnline = (data: unknown, isOnline: boolean) => {
+      const userId = (data as { userId?: string })?.userId;
+      if (!userId) return;
+      setFriends((previous) => previous.map((friend) => {
+        if (friend.userId !== userId) return friend;
+        const next = { ...friend, isOnline };
+        void friendsStore.put(next);
+        return next;
+      }));
+    };
+    const handleOnline = (data: unknown) => setOnline(data, true);
+    const handleOffline = (data: unknown) => setOnline(data, false);
+    on('friend:online', handleOnline);
+    on('friend:offline', handleOffline);
+    return () => {
+      off('friend:online', handleOnline);
+      off('friend:offline', handleOffline);
+    };
+  }, [off, on]);
 
-      // 检查是否已添加
-      const existing = await friendsStore.get<Friend>(userId);
-      if (existing) {
-        throw new Error('该好友已添加');
-      }
+  useEffect(() => {
+    if (!isConnected) return;
+    send('friends:sync', { friendUserIds: friends.map((friend) => friend.userId) });
+  }, [friends, isConnected, send]);
 
-      const friend: Friend = {
-        userId,
-        nickname: nickname || APP_CONFIG.defaultNickname,
-        avatar: avatar || '',
-        inviteCode: code,
-        addedAt: Date.now(),
-        isOnline: false,
-        status: '',
-        motionState: 'stay',
-        remark: remark || undefined,
-      };
-
-      await friendsStore.put(friend);
-      await loadFriends();
-      return friend;
-    },
-    [loadFriends],
+  const onlineFriends = useMemo(() => friends.filter((friend) => friend.isOnline), [friends]);
+  const offlineFriends = useMemo(() => friends.filter((friend) => !friend.isOnline), [friends]);
+  const isFriend = useCallback(
+    (userId: string) => friends.some((friend) => friend.userId === userId),
+    [friends],
   );
 
-  const removeFriend = useCallback(
-    async (userId: string) => {
-      await friendsStore.delete(userId);
-      await loadFriends();
-    },
-    [loadFriends],
-  );
+  const addFriend = useCallback(async (
+    inviteCode: string,
+    _nickname: string,
+    _avatar: string,
+    remark?: string,
+  ): Promise<Friend> => {
+    const friend = await friendRepository.redeemInvite(inviteCode, remark);
+    await loadFriends();
+    return friend;
+  }, [loadFriends]);
 
-  const updateFriend = useCallback(
-    async (userId: string, updates: Partial<Friend>) => {
-      const existing = await friendsStore.get<Friend>(userId);
-      if (!existing) return;
-      const updated: Friend = { ...existing, ...updates };
-      await friendsStore.put(updated);
-      await loadFriends();
-    },
-    [loadFriends],
-  );
+  const removeFriend = useCallback(async (userId: string) => {
+    await friendRepository.remove(userId);
+    await loadFriends();
+  }, [loadFriends]);
+
+  const updateFriend = useCallback(async (userId: string, updates: Partial<Friend>) => {
+    if ('remark' in updates) await friendRepository.updateRemark(userId, updates.remark);
+    await loadFriends();
+  }, [loadFriends]);
 
   const getFriend = useCallback(
-    (userId: string): Friend | undefined => {
-      return friends.find((f: Friend) => f.userId === userId);
-    },
+    (userId: string) => friends.find((friend) => friend.userId === userId),
     [friends],
   );
 
-  /**
-   * 按昵称搜索用户（本地 demo：从好友 + mock 池中模糊匹配）
-   */
-  const searchUsersByNickname = useCallback(
-    (keyword: string): Array<{ nickname: string; avatar: string; inviteCode: string; isFriend: boolean }> => {
-      const kw = keyword.trim().toLowerCase();
-      if (!kw) return [];
-
-      const fromFriends = friends
-        .filter((f: Friend) => f.nickname.toLowerCase().includes(kw))
-        .map((f: Friend) => ({
-          nickname: f.nickname,
-          avatar: f.avatar,
-          inviteCode: f.inviteCode,
-          isFriend: true,
-        }));
-
-      const friendCodes = new Set(friends.map((f: Friend) => f.inviteCode));
-      const fromMock = MOCK_SEARCH_USERS
-        .filter((u) => u.nickname.toLowerCase().includes(kw))
-        .map((u) => ({
-          nickname: u.nickname,
-          avatar: u.avatar,
-          inviteCode: hashInviteToUserId(u.nickname).slice(-6).toUpperCase(),
-          isFriend: false,
-        }))
-        .filter((u) => !friendCodes.has(u.inviteCode));
-
-      // 去重 + 截断
-      const seen = new Set<string>();
-      const result: Array<{ nickname: string; avatar: string; inviteCode: string; isFriend: boolean }> = [];
-      for (const item of [...fromFriends, ...fromMock]) {
-        if (seen.has(item.inviteCode)) continue;
-        seen.add(item.inviteCode);
-        result.push(item);
-        if (result.length >= 10) break;
-      }
-      return result;
-    },
-    [friends],
-  );
+  const searchUsersByNickname = useCallback((keyword: string) => {
+    const normalized = keyword.trim().toLocaleLowerCase();
+    if (!normalized) return [];
+    return friends
+      .filter((friend) => (friend.remark || friend.nickname).toLocaleLowerCase().includes(normalized))
+      .slice(0, 10)
+      .map((friend) => ({
+        nickname: friend.remark || friend.nickname,
+        avatar: friend.avatar,
+        inviteCode: '',
+        isFriend: true,
+      }));
+  }, [friends]);
 
   return {
     friends,

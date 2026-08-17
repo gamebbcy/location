@@ -3,6 +3,7 @@ import { logger } from '@lark-apaas/client-toolkit/logger';
 import { useWebSocket } from './useWebSocket';
 import type { FriendLocationUpdate, AlertReceivePayload } from '@shared/api.interface';
 import { friendsStore } from '@client/src/lib/storage';
+import { friendRepository } from '@client/src/data/friend-repository';
 
 export interface AlertNotification {
   fromUserId: string;
@@ -183,7 +184,7 @@ export function useFriendLocations(): UseFriendLocationsReturn {
 
   const requestAllFriendsLocations = useCallback(async () => {
     try {
-      const friends = await friendsStore.getAll<{ userId: string }>();
+      const friends = await friendRepository.syncCache();
       for (const friend of friends) {
         if (friend.userId) {
           requestFriendLocation(friend.userId);
@@ -209,13 +210,13 @@ export function useFriendLocations(): UseFriendLocationsReturn {
     };
   }, [on, off, handleLocationUpdate, handleFriendOnline, handleFriendOffline, handleAlertReceive]);
 
-  // On connect, request all friends' locations
+  // Start the shared connection and request all friends once it is ready.
   useEffect(() => {
-    if (isConnected) {
-      // Connect to ensure socket is alive
-      connect();
-      void requestAllFriendsLocations();
-    }
+    connect();
+  }, [connect]);
+
+  useEffect(() => {
+    if (isConnected) void requestAllFriendsLocations();
   }, [isConnected, connect, requestAllFriendsLocations]);
 
   // Cleanup alert timer on unmount

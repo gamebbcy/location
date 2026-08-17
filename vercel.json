@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build:client",
+  "outputDirectory": "dist/client",
+  "regions": ["sin1"],
+  "rewrites": [
+    {
+      "source": "/((?!assets/|favicon\\.svg).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
