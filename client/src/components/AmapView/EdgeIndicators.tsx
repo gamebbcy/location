@@ -34,7 +34,7 @@ interface EdgeIndicatorsProps {
   edgeInset?: number;
   /** 顶部悬浮控件的安全距离 */
   topInset?: number;
-  /** 底部导航、好友气泡和状态按钮的安全距离 */
+  /** 底部导航和好友气泡的安全距离 */
   bottomInset?: number;
 }
 
@@ -43,7 +43,7 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
   onAvatarClick,
   avatarSize = 36,
   edgeInset = 12,
-  topInset = 72,
+  topInset = 120,
   bottomInset = 152,
 }) => {
   // 按侧分组

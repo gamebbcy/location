@@ -324,11 +324,22 @@ const MapPage: React.FC = () => {
 
       {/* Top status bar */}
       <div className="absolute left-0 right-0 top-0 z-20 p-4">
-        <div className="mx-auto flex max-w-md items-center justify-between">
-          <div className="rounded-full bg-card/90 px-4 py-2 shadow-md backdrop-blur-lg">
-            <span className="text-sm font-medium">
-              在线好友 <span className="text-primary">{onlineCount}</span> 人
-            </span>
+        <div className="mx-auto flex max-w-md items-start justify-between">
+          <div className="flex flex-col items-start gap-2">
+            <div className="rounded-full bg-card/90 px-4 py-2 shadow-md backdrop-blur-lg">
+              <span className="text-sm font-medium">
+                在线好友 <span className="text-primary">{onlineCount}</span> 人
+              </span>
+            </div>
+            <StatusPicker
+              currentStatus={myStatus}
+              onSelect={(status) => {
+                void updateStatus(status);
+              }}
+              onSaveWithDuration={(status, durationMinutes) => {
+                void updateStatus(status, durationMinutes);
+              }}
+            />
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -426,19 +437,6 @@ const MapPage: React.FC = () => {
             })}
           </div>
         </div>
-      </div>
-
-      {/* Left-bottom status button */}
-      <div className="absolute bottom-24 left-4 z-20">
-        <StatusPicker
-          currentStatus={myStatus}
-          onSelect={(status) => {
-            void updateStatus(status);
-          }}
-          onSaveWithDuration={(status, durationMinutes) => {
-            void updateStatus(status, durationMinutes);
-          }}
-        />
       </div>
 
       {/* Poke notification */}
