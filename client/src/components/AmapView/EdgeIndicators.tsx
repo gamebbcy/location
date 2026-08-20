@@ -32,26 +32,10 @@ interface EdgeIndicatorsProps {
   avatarSize?: number;
   /** 边缘内边距 px，默认 12 */
   edgeInset?: number;
-}
-
-/**
- * 将同一边的多个好友沿边缘均匀分布。
- * 当好友数量 > 1 时，把 position 做「拉伸 + 居中」处理，避免挤在角落。
- */
-function spreadAlongEdge(items: EdgeIndicatorItem[]): EdgeIndicatorItem[] {
-  if (items.length <= 1) return items;
-
-  const sorted = [...items].sort((a, b) => a.position - b.position);
-  const spread: EdgeIndicatorItem[] = [];
-  const total = sorted.length;
-  const margin = 0.08; // 两端各留 8% 避免贴角
-
-  for (let i = 0; i < total; i++) {
-    const t = total === 1 ? 0.5 : margin + (i * (1 - 2 * margin)) / (total - 1);
-    spread.push({ ...sorted[i], position: t });
-  }
-
-  return spread;
+  /** 顶部悬浮控件的安全距离 */
+  topInset?: number;
+  /** 底部导航、好友气泡和状态按钮的安全距离 */
+  bottomInset?: number;
 }
 
 const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
@@ -59,6 +43,8 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
   onAvatarClick,
   avatarSize = 36,
   edgeInset = 12,
+  topInset = 72,
+  bottomInset = 152,
 }) => {
   // 按侧分组
   const groups = useMemo(() => {
@@ -72,10 +58,10 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
       raw[f.side].push(f);
     }
     return {
-      top: spreadAlongEdge(raw.top),
-      right: spreadAlongEdge(raw.right),
-      bottom: spreadAlongEdge(raw.bottom),
-      left: spreadAlongEdge(raw.left),
+      top: raw.top.sort((a, b) => a.position - b.position),
+      right: raw.right.sort((a, b) => a.position - b.position),
+      bottom: raw.bottom.sort((a, b) => a.position - b.position),
+      left: raw.left.sort((a, b) => a.position - b.position),
     };
   }, [friends]);
 
@@ -133,7 +119,7 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
       {/* Top edge */}
       <div
         className="pointer-events-auto absolute left-0 right-0 flex justify-center"
-        style={{ top: edgeInset }}
+        style={{ top: topInset }}
       >
         <div className="relative flex w-full justify-center">
           {groups.top.map((f) => (
@@ -151,7 +137,7 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
       {/* Bottom edge */}
       <div
         className="pointer-events-auto absolute left-0 right-0 flex justify-center"
-        style={{ bottom: edgeInset }}
+        style={{ bottom: bottomInset }}
       >
         <div className="relative flex w-full justify-center">
           {groups.bottom.map((f) => (
@@ -168,8 +154,8 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
 
       {/* Left edge */}
       <div
-        className="pointer-events-auto absolute top-0 bottom-0 flex flex-col items-center"
-        style={{ left: edgeInset }}
+        className="pointer-events-auto absolute flex flex-col items-center"
+        style={{ left: edgeInset, top: topInset, bottom: bottomInset }}
       >
         <div className="relative flex h-full flex-col items-center">
           {groups.left.map((f) => (
@@ -186,8 +172,8 @@ const EdgeIndicators: React.FC<EdgeIndicatorsProps> = ({
 
       {/* Right edge */}
       <div
-        className="pointer-events-auto absolute top-0 bottom-0 flex flex-col items-center"
-        style={{ right: edgeInset }}
+        className="pointer-events-auto absolute flex flex-col items-center"
+        style={{ right: edgeInset, top: topInset, bottom: bottomInset }}
       >
         <div className="relative flex h-full flex-col items-center">
           {groups.right.map((f) => (

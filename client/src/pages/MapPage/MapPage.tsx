@@ -309,6 +309,7 @@ const MapPage: React.FC = () => {
       <AmapView
         ref={mapRef}
         center={center}
+        directionOrigin={center}
         zoom={15}
         markers={markers}
         edgeFriends={edgeFriends}

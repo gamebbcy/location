@@ -73,6 +73,7 @@ export function FriendRow({ friend, onLongPress }: FriendRowProps) {
 
   const MotionIcon = MOTION_ICON_MAP[friend.motionState] || CircleDot;
   const motionColor = MOTION_COLOR_MAP[friend.motionState] || '';
+  const presenceLabel = friend.isOnline ? '在线' : '离线';
 
   return (
     <div
@@ -107,8 +108,8 @@ export function FriendRow({ friend, onLongPress }: FriendRowProps) {
         </div>
         <p className="text-xs text-muted-foreground truncate">
           {secondaryName
-            ? `${secondaryName} · ${friend.status || (friend.isOnline ? '在线' : '离线')}`
-            : friend.status || (friend.isOnline ? '在线' : '离线')}
+            ? `${secondaryName} · ${presenceLabel}`
+            : presenceLabel}
         </p>
       </div>
       <Button

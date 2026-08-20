@@ -4,6 +4,8 @@ import { friendRepository } from '@client/src/data/friend-repository';
 import type { Friend } from '@shared/api.interface';
 import { useWebSocket } from './useWebSocket';
 import { friendsStore } from '@client/src/lib/storage';
+import { useAuth } from './useAuth';
+import { useInviteCode } from './useInviteCode';
 
 export type { Friend };
 
@@ -13,8 +15,13 @@ function sortFriends(list: Friend[]): Friend[] {
 
 export function useFriends() {
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [myInviteCode, setMyInviteCode] = useState('');
-  const [myInviteExpiresAt, setMyInviteExpiresAt] = useState<number | null>(null);
+  const { user } = useAuth();
+  const {
+    code: myInviteCode,
+    expiresAt: myInviteExpiresAt,
+    load: loadMyInviteCode,
+    refresh: refreshMyInviteCode,
+  } = useInviteCode(user?.userId);
   const { connect, isConnected, on, off, send } = useWebSocket();
 
   const loadFriends = useCallback(async () => {
@@ -25,15 +32,6 @@ export function useFriends() {
       throw error;
     }
   }, []);
-
-  const loadMyInviteCode = useCallback(async () => {
-    const result = await friendRepository.createInvite();
-    setMyInviteCode(result.code);
-    setMyInviteExpiresAt(result.expiresAt);
-    return result;
-  }, []);
-
-  const refreshMyInviteCode = useCallback(async () => loadMyInviteCode(), [loadMyInviteCode]);
 
   useEffect(() => {
     void Promise.all([loadFriends(), loadMyInviteCode()]).catch((error) => {

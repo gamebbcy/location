@@ -37,6 +37,8 @@ export interface AmapEdgeFriend {
 export interface AmapViewProps {
   amapKey?: string;
   center?: { lat: number; lng: number };
+  /** 方向指示的原点；地图页传入本人实时位置。 */
+  directionOrigin?: { lat: number; lng: number };
   zoom?: number;
   markers?: AmapMarker[];
   polylines?: AmapPolyline[];
@@ -111,6 +113,7 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
   {
     amapKey = APP_CONFIG.amapKey,
     center,
+    directionOrigin,
     zoom = 15,
     markers = [],
     polylines = [],
@@ -403,6 +406,18 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
     const { north, south, east, west, centerLat, centerLng } = bounds;
     const latSpan = Math.max(north - south, 1e-6);
     const lngSpan = Math.max(east - west, 1e-6);
+    const origin = directionOrigin ?? { lat: centerLat, lng: centerLng };
+
+    // 地图通常以本人为中心。若用户手动把本人位置移出视野，边缘交点退回
+    // 视野中心，但方位角和距离仍始终以本人为原点。
+    const originIsVisible =
+      origin.lat >= south && origin.lat <= north
+      && origin.lng >= west && origin.lng <= east;
+    const rayOrigin = originIsVisible
+      ? origin
+      : { lat: centerLat, lng: centerLng };
+    const originX = (rayOrigin.lng - west) / lngSpan;
+    const originY = (north - rayOrigin.lat) / latSpan;
 
     const offscreen: Array<{
       id: string;
@@ -425,40 +440,48 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
         f.lng <= east;
       if (inView) continue;
 
-      const bearing = calculateBearing(centerLat, centerLng, f.lat, f.lng);
-      const distanceKm = haversineDistance(centerLat, centerLng, f.lat, f.lng);
+      const bearing = calculateBearing(origin.lat, origin.lng, f.lat, f.lng);
+      const distanceKm = haversineDistance(origin.lat, origin.lng, f.lat, f.lng);
 
-      // 相对偏移（以视野 span 为单位，中心为 0）
-      const dLat = (f.lat - centerLat) / latSpan; // 北正南负
-      const dLng = (f.lng - centerLng) / lngSpan; // 东正西负
+      // 把本人和好友投影到当前视野的 0~1 坐标，取“本人 → 好友”射线
+      // 与矩形边界的第一个交点。这样边缘头像真实反映相对方向。
+      const friendX = (f.lng - west) / lngSpan;
+      const friendY = (north - f.lat) / latSpan;
+      const dx = friendX - originX;
+      const dy = friendY - originY;
+      const candidates: Array<{
+        t: number;
+        side: 'top' | 'right' | 'bottom' | 'left';
+        position: number;
+      }> = [];
 
-      // 根据方位角确定在哪一侧（45°~135° 为右，以此类推）
-      let side: 'top' | 'right' | 'bottom' | 'left';
-      let position: number;
+      const addCandidate = (
+        t: number,
+        side: 'top' | 'right' | 'bottom' | 'left',
+        position: number,
+      ): void => {
+        if (t > 0 && Number.isFinite(t) && position >= 0 && position <= 1) {
+          candidates.push({ t, side, position });
+        }
+      };
 
-      if (bearing >= 45 && bearing < 135) {
-        // 东 → 右边缘，position 按纬度比例计算（北→南：0→1）
-        side = 'right';
-        // 将 dLat 映射到 0~1：北 = 0，南 = 1
-        position = 0.5 - dLat / 2;
-        // 确保在 0.05~0.95 之间，避免贴角
-        position = Math.max(0.05, Math.min(0.95, position));
-      } else if (bearing >= 135 && bearing < 225) {
-        // 南 → 底边缘，position 按经度比例计算（西→东：0→1）
-        side = 'bottom';
-        position = 0.5 + dLng / 2;
-        position = Math.max(0.05, Math.min(0.95, position));
-      } else if (bearing >= 225 && bearing < 315) {
-        // 西 → 左边缘，position 按纬度比例计算（北→南：0→1）
-        side = 'left';
-        position = 0.5 - dLat / 2;
-        position = Math.max(0.05, Math.min(0.95, position));
-      } else {
-        // 北 → 顶边缘，position 按经度比例计算（西→东：0→1）
-        side = 'top';
-        position = 0.5 + dLng / 2;
-        position = Math.max(0.05, Math.min(0.95, position));
+      if (Math.abs(dx) > 1e-9) {
+        const leftT = (0 - originX) / dx;
+        addCandidate(leftT, 'left', originY + leftT * dy);
+        const rightT = (1 - originX) / dx;
+        addCandidate(rightT, 'right', originY + rightT * dy);
       }
+      if (Math.abs(dy) > 1e-9) {
+        const topT = (0 - originY) / dy;
+        addCandidate(topT, 'top', originX + topT * dx);
+        const bottomT = (1 - originY) / dy;
+        addCandidate(bottomT, 'bottom', originX + bottomT * dx);
+      }
+
+      const intersection = candidates.sort((a, b) => a.t - b.t)[0];
+      if (!intersection) continue;
+      const side = intersection.side;
+      const position = Math.max(0.08, Math.min(0.92, intersection.position));
 
       offscreen.push({
         id: f.id,
@@ -475,7 +498,7 @@ const AmapView = forwardRef<AmapViewRef, AmapViewProps>(function AmapView(
     }
 
     return offscreen;
-  }, [bounds, edgeFriends]);
+  }, [bounds, directionOrigin, edgeFriends]);
 
   // Fallback UI when no key
   if (!hasKey) {
