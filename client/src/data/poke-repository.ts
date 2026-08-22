@@ -39,7 +39,6 @@ export const pokeRepository = {
     if (error) throw error;
     if (!data) return null;
     const row = data as PendingPokeRow;
-    await this.remove(row.message_id);
     return {
       fromUserId: row.sender_id,
       fromNickname: row.sender_nickname,

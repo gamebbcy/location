@@ -24,7 +24,7 @@ export interface UsePokeReturn {
   /** User IDs currently in shake animation state */
   shakingUserIds: Set<string>;
   /** Send a poke to a friend; returns false if in cooldown */
-  sendPoke: (toUserId: string) => boolean;
+  sendPoke: (toUserId: string) => Promise<boolean>;
   /** Check if a friend is on cooldown */
   isCooldown: (toUserId: string) => boolean;
   /** Get remaining cooldown ms for a friend */
@@ -175,7 +175,7 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
   }, []);
 
   const sendPoke = useCallback(
-    (toUserId: string): boolean => {
+    async (toUserId: string): Promise<boolean> => {
       const now = Date.now();
       const cooldownEnd = cooldownRef.current.get(toUserId) ?? 0;
 
@@ -190,14 +190,13 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
         timestamp: now,
       };
 
-      void pokeRepository.save(toUserId, payload)
-        .then(() => {
-          if (isConnected) send('poke:send', payload);
-        })
-        .catch((error) => {
-          logger.error('保存离线戳一戳失败', error);
-          if (isConnected) send('poke:send', payload);
-        });
+      try {
+        await pokeRepository.save(toUserId, payload);
+      } catch (error) {
+        logger.error('保存离线戳一戳失败', error);
+        return false;
+      }
+      if (isConnected) send('poke:send', payload);
       cooldownRef.current.set(toUserId, now + POKE_COOLDOWN_MS);
 
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -228,6 +227,21 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
     on('poke:receive', handlePokeReceive);
     let disposed = false;
     let pendingChannel: ReturnType<typeof supabase.channel> | null = null;
+    let consumeInFlight = false;
+    const consumePending = async (): Promise<void> => {
+      if (disposed || consumeInFlight) return;
+      consumeInFlight = true;
+      try {
+        const pending = await pokeRepository.consumeLatest();
+        if (pending && !disposed) handlePokeReceive(pending);
+      } catch (consumeError) {
+        logger.error('读取待收戳一戳失败', consumeError);
+      } finally {
+        consumeInFlight = false;
+      }
+    };
+    const pollTimer = window.setInterval(() => { void consumePending(); }, 2_000);
+    void consumePending();
     void supabase.auth.getUser()
       .then(({ data, error }) => {
         if (error) throw error;
@@ -258,14 +272,13 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
           })
           .subscribe((status) => {
             if (status !== 'SUBSCRIBED') return;
-            void pokeRepository.consumeLatest()
-              .then((pending) => { if (pending && !disposed) handlePokeReceive(pending); })
-              .catch((consumeError) => logger.error('读取待收戳一戳失败', consumeError));
+            void consumePending();
           });
       })
       .catch((error) => logger.error('订阅离线戳一戳失败', error));
     return () => {
       disposed = true;
+      window.clearInterval(pollTimer);
       off('poke:receive', handlePokeReceive);
       if (pendingChannel) void supabase.removeChannel(pendingChannel);
     };

@@ -53,9 +53,9 @@ const FriendsPage = () => {
   const { places, addPlace, updatePlace, deletePlace } = usePlaces();
   const { sendPoke } = usePoke(false);
 
-  const handlePoke = (friend: Friend): void => {
-    if (sendPoke(friend.userId)) toast.success(`已戳了戳 ${friend.remark || friend.nickname}`);
-    else toast.info('戳一戳冷却中，请稍后再试');
+  const handlePoke = async (friend: Friend): Promise<void> => {
+    if (await sendPoke(friend.userId)) toast.success(`已戳了戳 ${friend.remark || friend.nickname}`);
+    else toast.error('戳一戳发送失败或仍在冷却，请稍后再试');
   };
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

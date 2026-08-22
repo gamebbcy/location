@@ -103,13 +103,13 @@ const MapPage: React.FC = () => {
 
   // Handle double-click (poke) on friend marker
   const handleFriendDoubleClick = useCallback(
-    (friend: FriendInfo) => {
-      const ok = sendPoke(friend.userId);
+    async (friend: FriendInfo) => {
+      const ok = await sendPoke(friend.userId);
       if (!ok) {
         // Still trigger a visual flash to indicate cooldown
         triggerShake(friend.userId);
         logger.warn('poke on cooldown for', friend.nickname);
-        toast.info('戳一戳冷却中，请稍后再试');
+        toast.error('戳一戳发送失败或仍在冷却，请稍后再试');
       } else {
         toast.success(`已戳了戳 ${friend.nickname}`);
       }

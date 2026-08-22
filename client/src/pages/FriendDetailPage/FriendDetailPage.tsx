@@ -100,10 +100,10 @@ const FriendDetailPage: React.FC = () => {
     setAlertOpen(false);
   }, [id, send]);
 
-  const handlePoke = useCallback(() => {
+  const handlePoke = useCallback(async () => {
     if (!friend) return;
-    if (sendPoke(friend.userId)) toast.success(`已戳了戳 ${friend.remark || friend.nickname}`);
-    else toast.info('戳一戳冷却中，请稍后再试');
+    if (await sendPoke(friend.userId)) toast.success(`已戳了戳 ${friend.remark || friend.nickname}`);
+    else toast.error('戳一戳发送失败或仍在冷却，请稍后再试');
   }, [friend, sendPoke]);
 
   if (loading) {
