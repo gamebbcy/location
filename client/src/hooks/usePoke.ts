@@ -3,6 +3,7 @@ import { logger } from '@lark-apaas/client-toolkit/logger';
 import { useWebSocket } from './useWebSocket';
 import type { PokeReceivePayload, PokeSendPayload } from '@shared/api.interface';
 import { pokeRepository } from '@client/src/data/poke-repository';
+import { supabase } from '@client/src/lib/supabase';
 
 const POKE_COOLDOWN_MS = 30_000; // 30s cooldown per friend
 const POKE_NOTIFICATION_DEDUP_MS = 2_000; // 2s dedup per sender
@@ -225,11 +226,48 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
   useEffect(() => {
     if (!listenForIncoming) return;
     on('poke:receive', handlePokeReceive);
-    void pokeRepository.consumeLatest()
-      .then((pending) => { if (pending) handlePokeReceive(pending); })
-      .catch((error) => logger.error('读取离线戳一戳失败', error));
+    let disposed = false;
+    let pendingChannel: ReturnType<typeof supabase.channel> | null = null;
+    void supabase.auth.getUser()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        if (!data.user || disposed) return;
+        pendingChannel = supabase
+          .channel(`pending-pokes:${data.user.id}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'pending_pokes',
+            filter: `recipient_id=eq.${data.user.id}`,
+          }, ({ new: incoming }) => {
+            const row = incoming as {
+              sender_id?: string;
+              message_id?: string;
+              sender_nickname?: string;
+              sender_avatar?: string | null;
+              created_at?: string;
+            };
+            if (!row.sender_id || !row.message_id) return;
+            handlePokeReceive({
+              fromUserId: row.sender_id,
+              fromNickname: row.sender_nickname || '好友',
+              fromAvatar: row.sender_avatar || undefined,
+              messageId: row.message_id,
+              timestamp: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+            });
+          })
+          .subscribe((status) => {
+            if (status !== 'SUBSCRIBED') return;
+            void pokeRepository.consumeLatest()
+              .then((pending) => { if (pending && !disposed) handlePokeReceive(pending); })
+              .catch((consumeError) => logger.error('读取待收戳一戳失败', consumeError));
+          });
+      })
+      .catch((error) => logger.error('订阅离线戳一戳失败', error));
     return () => {
+      disposed = true;
       off('poke:receive', handlePokeReceive);
+      if (pendingChannel) void supabase.removeChannel(pendingChannel);
     };
   }, [handlePokeReceive, listenForIncoming, off, on]);
 
