@@ -25,7 +25,20 @@ const PokeNotification: React.FC<PokeNotificationProps> = ({ notification, onDis
   const initial = notification.fromNickname.slice(0, 1).toUpperCase();
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[100] flex justify-center pt-16 px-4 pointer-events-none">
+    <div className="pointer-events-none fixed inset-0 z-[100] overflow-hidden" role="status" aria-live="assertive">
+      <div className="absolute inset-0 animate-[poke-screen-flash_900ms_ease-out_forwards] bg-primary/12 motion-reduce:animate-none" />
+
+      <div className="absolute inset-0 flex items-center justify-center px-6 pb-14">
+        <div className="relative animate-[poke-text-pop_1.15s_cubic-bezier(0.2,0.9,0.25,1)_forwards] text-center motion-reduce:animate-none">
+          <div className="absolute inset-1 -z-10 scale-150 rounded-full bg-primary/25 blur-3xl" />
+          <div className="mb-2 text-5xl drop-shadow-sm">👆</div>
+          <p className="max-w-[18rem] rounded-full border border-primary/20 bg-card/90 px-6 py-3 text-xl font-bold text-foreground shadow-xl backdrop-blur-xl">
+            <span className="text-primary">{notification.fromNickname}</span> 戳了戳你
+          </p>
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 top-0 flex justify-center px-4 pt-[max(4rem,env(safe-area-inset-top))]">
       <div
         className={cn(
           'pointer-events-auto max-w-sm w-full',
@@ -72,6 +85,7 @@ const PokeNotification: React.FC<PokeNotificationProps> = ({ notification, onDis
           </button>
         </div>
       </div>
+      </div>
 
       {/* Inject keyframes once per mount */}
       <style>{`
@@ -105,6 +119,18 @@ const PokeNotification: React.FC<PokeNotificationProps> = ({ notification, onDis
           50% {
             transform: translateY(-3px);
           }
+        }
+        @keyframes poke-screen-flash {
+          0% { opacity: 0; }
+          18% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes poke-text-pop {
+          0% { opacity: 0; transform: scale(0.55) translateY(24px); }
+          20% { opacity: 1; transform: scale(1.08) translateY(0); }
+          38% { transform: scale(0.98); }
+          75% { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(0.94) translateY(-12px); }
         }
       `}</style>
     </div>

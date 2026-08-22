@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { useWebSocket } from './useWebSocket';
 import type { PokeReceivePayload, PokeSendPayload } from '@shared/api.interface';
+import { pokeRepository } from '@client/src/data/poke-repository';
 
 const POKE_COOLDOWN_MS = 30_000; // 30s cooldown per friend
 const POKE_NOTIFICATION_DEDUP_MS = 2_000; // 2s dedup per sender
@@ -158,6 +159,8 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
         messageId: payload.messageId,
         timestamp: payload.timestamp,
       });
+      void pokeRepository.remove(payload.messageId)
+        .catch((error) => logger.warn('清理已接收戳一戳失败', error));
     },
     [showNotification],
   );
@@ -180,18 +183,20 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
         return false;
       }
 
-      if (!isConnected) {
-        logger.warn('poke:send skipped (not connected)');
-        return false;
-      }
-
       const payload: PokeSendPayload = {
         toUserId,
         messageId: generateMessageId(),
         timestamp: now,
       };
 
-      send('poke:send', payload);
+      void pokeRepository.save(toUserId, payload)
+        .then(() => {
+          if (isConnected) send('poke:send', payload);
+        })
+        .catch((error) => {
+          logger.error('保存离线戳一戳失败', error);
+          if (isConnected) send('poke:send', payload);
+        });
       cooldownRef.current.set(toUserId, now + POKE_COOLDOWN_MS);
 
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -220,6 +225,9 @@ export function usePoke(listenForIncoming = true): UsePokeReturn {
   useEffect(() => {
     if (!listenForIncoming) return;
     on('poke:receive', handlePokeReceive);
+    void pokeRepository.consumeLatest()
+      .then((pending) => { if (pending) handlePokeReceive(pending); })
+      .catch((error) => logger.error('读取离线戳一戳失败', error));
     return () => {
       off('poke:receive', handlePokeReceive);
     };
