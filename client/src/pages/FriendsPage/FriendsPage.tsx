@@ -23,6 +23,8 @@ import { DeleteFriendDialog } from './DeleteFriendDialog';
 import { PlaceDialog } from './PlaceDialog';
 import { generateInviteLink, shareInvite } from '@client/src/lib/utils/invite';
 import { getProfile } from '@client/src/lib/storage';
+import { usePoke } from '@client/src/hooks/usePoke';
+import { toast } from 'sonner';
 
 const TAG_ICON_MAP = {
   home: Home,
@@ -49,6 +51,12 @@ const FriendsPage = () => {
     removeFriend,
   } = useFriends();
   const { places, addPlace, updatePlace, deletePlace } = usePlaces();
+  const { sendPoke } = usePoke(false);
+
+  const handlePoke = (friend: Friend): void => {
+    if (sendPoke(friend.userId)) toast.success(`已戳了戳 ${friend.remark || friend.nickname}`);
+    else toast.info('戳一戳冷却中，请稍后再试');
+  };
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Friend | null>(null);
@@ -222,7 +230,7 @@ const FriendsPage = () => {
             </div>
             {onlineFriends.map((f: Friend) => (
               <div key={f.userId} className="border-t border-border first:border-t-0">
-                <FriendRow friend={f} onLongPress={handleLongPressFriend} />
+                <FriendRow friend={f} onLongPress={handleLongPressFriend} onPoke={handlePoke} />
               </div>
             ))}
           </div>
@@ -235,7 +243,7 @@ const FriendsPage = () => {
             </div>
             {offlineFriends.map((f: Friend) => (
               <div key={f.userId} className="border-t border-border first:border-t-0">
-                <FriendRow friend={f} onLongPress={handleLongPressFriend} />
+                <FriendRow friend={f} onLongPress={handleLongPressFriend} onPoke={handlePoke} />
               </div>
             ))}
           </div>

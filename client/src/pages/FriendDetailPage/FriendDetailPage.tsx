@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Battery, MapPin, Navigation, Palette, Phone, Zap } from 'lucide-react';
+import { ArrowLeft, Battery, Hand, MapPin, Navigation, Palette, Phone, Zap } from 'lucide-react';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@client/src/components/ui/button';
@@ -15,6 +15,8 @@ import PhoneDialog from './PhoneDialog';
 import NavigateDialog from './NavigateDialog';
 import AlertConfirmDialog from './AlertConfirmDialog';
 import type { Friend } from '@shared/api.interface';
+import { usePoke } from '@client/src/hooks/usePoke';
+import { toast } from 'sonner';
 
 const DEFAULT_CENTER = { lat: 39.9042, lng: 116.4074 };
 const MOTION_LABELS = {
@@ -29,6 +31,7 @@ const FriendDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { friendLocations, isOnline, requestFriendLocation } = useFriendLocations();
   const { send } = useWebSocket();
+  const { sendPoke } = usePoke(false);
   const [friend, setFriend] = useState<Friend | null>(null);
   const [loading, setLoading] = useState(true);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
@@ -96,6 +99,12 @@ const FriendDetailPage: React.FC = () => {
     });
     setAlertOpen(false);
   }, [id, send]);
+
+  const handlePoke = useCallback(() => {
+    if (!friend) return;
+    if (sendPoke(friend.userId)) toast.success(`已戳了戳 ${friend.remark || friend.nickname}`);
+    else toast.info('戳一戳冷却中，请稍后再试');
+  }, [friend, sendPoke]);
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">加载中…</div>;
@@ -166,6 +175,9 @@ const FriendDetailPage: React.FC = () => {
           <Button className="rounded-xl" onClick={() => setAlertOpen(true)}><Zap className="size-4" />提醒</Button>
           <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/draw/${friend.userId}`)}><Palette className="size-4" />画板</Button>
         </div>
+        <Button className="mt-2 w-full rounded-xl" variant="secondary" onClick={handlePoke}>
+          <Hand className="size-4" />戳一戳
+        </Button>
       </div>
 
       <PhoneDialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen} phone={friend.phone} onSave={handleSavePhone} />

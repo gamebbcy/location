@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@client/src/components/ui/avatar';
 import { Button } from '@client/src/components/ui/button';
-import { Trash2, Car, PersonStanding, Footprints, CircleDot } from 'lucide-react';
+import { Trash2, Car, PersonStanding, Footprints, CircleDot, Hand } from 'lucide-react';
 import { useSensitiveWords } from '@client/src/hooks/useSensitiveWords';
 import type { Friend } from '@client/src/hooks/useFriends';
 
@@ -23,11 +23,12 @@ const MOTION_COLOR_MAP: Record<string, string> = {
 interface FriendRowProps {
   friend: Friend;
   onLongPress: (friend: Friend) => void;
+  onPoke: (friend: Friend) => void;
 }
 
 const LONG_PRESS_MS = 800;
 
-export function FriendRow({ friend, onLongPress }: FriendRowProps) {
+export function FriendRow({ friend, onLongPress, onPoke }: FriendRowProps) {
   const navigate = useNavigate();
   const { filterOnDisplay } = useSensitiveWords();
   const timerRef = useRef<number | null>(null);
@@ -112,6 +113,20 @@ export function FriendRow({ friend, onLongPress }: FriendRowProps) {
             : presenceLabel}
         </p>
       </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 shrink-0 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onPoke(friend);
+        }}
+        aria-label={`戳一戳 ${displayName}`}
+        title="戳一戳"
+      >
+        <Hand className="h-4 w-4" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"
