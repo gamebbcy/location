@@ -16,14 +16,13 @@ export const pokeRepository = {
     if (userError) throw userError;
     if (!userData.user) throw new Error('登录状态已失效');
     const profile = getProfile();
-    const { error } = await supabase.from('pending_pokes').upsert({
-      recipient_id: toUserId,
-      sender_id: userData.user.id,
-      message_id: payload.messageId,
-      sender_nickname: profile?.nickname || '好友',
-      sender_avatar: profile?.avatar || null,
-      created_at: new Date(payload.timestamp).toISOString(),
-    }, { onConflict: 'recipient_id' });
+    const { error } = await supabase.rpc('send_poke', {
+      p_recipient_id: toUserId,
+      p_message_id: payload.messageId,
+      p_sender_nickname: profile?.nickname || '好友',
+      p_sender_avatar: profile?.avatar || null,
+      p_created_at: new Date(payload.timestamp).toISOString(),
+    });
     if (error) throw error;
   },
 
