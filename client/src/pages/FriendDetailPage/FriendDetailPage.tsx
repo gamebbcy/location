@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Battery, MapPin, Navigation, Phone, Zap } from 'lucide-react';
+import { ArrowLeft, Battery, MapPin, Navigation, Palette, Phone, Zap } from 'lucide-react';
 import { logger } from '@lark-apaas/client-toolkit/logger';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@client/src/components/ui/button';
@@ -160,10 +160,11 @@ const FriendDetailPage: React.FC = () => {
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-4 gap-2">
           <Button variant="outline" className="rounded-xl" onClick={handleCall}><Phone className="size-4" />电话</Button>
           <Button variant="outline" className="rounded-xl" disabled={!location} onClick={() => setNavigateOpen(true)}><Navigation className="size-4" />导航</Button>
           <Button className="rounded-xl" onClick={() => setAlertOpen(true)}><Zap className="size-4" />提醒</Button>
+          <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/draw/${friend.userId}`)}><Palette className="size-4" />画板</Button>
         </div>
       </div>
 

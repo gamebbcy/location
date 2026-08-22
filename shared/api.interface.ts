@@ -83,6 +83,8 @@ export interface PokeSendPayload {
 
 export interface PokeReceivePayload {
   fromUserId: string;
+  fromNickname?: string;
+  fromAvatar?: string;
   messageId: string;
   timestamp: number;
 }

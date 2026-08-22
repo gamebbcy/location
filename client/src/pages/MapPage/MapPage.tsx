@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { toast } from 'sonner';
 import { Locate, Layers, Smile, MapPin, Plus } from 'lucide-react';
 import AmapView, {
   type AmapViewRef,
@@ -12,7 +13,6 @@ import { useFriendLocations } from '@client/src/hooks/useFriendLocations';
 import { useMusicState } from '@client/src/hooks/useMusicState';
 import { useWebSocket } from '@client/src/hooks/useWebSocket';
 import { usePoke } from '@client/src/hooks/usePoke';
-import PokeNotification from '@client/src/components/PokeNotification';
 import AlertNotification from '@client/src/components/AlertNotification';
 import {
   getBattery,
@@ -53,6 +53,7 @@ const DEFAULT_CENTER = { lat: 39.9087, lng: 116.3975 }; // Beijing fallback
 const MapPage: React.FC = () => {
   const navigate = useNavigate();
   const mapRef = useRef<AmapViewRef>(null);
+  const avatarTapRef = useRef<Map<string, { at: number; timer: number }>>(new Map());
   const {
     position,
     accuracy,
@@ -65,14 +66,12 @@ const MapPage: React.FC = () => {
   const { send, connect, isConnected } = useWebSocket();
   const { musicState, startAutoDetect, stopAutoDetect } = useMusicState();
   const {
-    activeNotification,
     shakingUserIds,
     sendPoke,
     isCooldown,
-    dismissNotification,
     setFriendInfoMap,
     triggerShake,
-  } = usePoke();
+  } = usePoke(false);
 
   const [friends, setFriends] = useState<FriendInfo[]>([]);
   const [selfActionOpen, setSelfActionOpen] = useState<boolean>(false);
@@ -110,10 +109,18 @@ const MapPage: React.FC = () => {
         // Still trigger a visual flash to indicate cooldown
         triggerShake(friend.userId);
         logger.warn('poke on cooldown for', friend.nickname);
+        toast.info('戳一戳冷却中，请稍后再试');
+      } else {
+        toast.success(`已戳了戳 ${friend.nickname}`);
       }
     },
     [sendPoke, triggerShake],
   );
+
+  useEffect(() => () => {
+    for (const tap of avatarTapRef.current.values()) window.clearTimeout(tap.timer);
+    avatarTapRef.current.clear();
+  }, []);
 
   // Start watching position on mount
   useEffect(() => {
@@ -286,13 +293,29 @@ const MapPage: React.FC = () => {
   };
 
   // Locate a friend on the map
-  const handleLocateFriend = (friend: FriendInfo): void => {
+  const handleLocateFriend = useCallback((friend: FriendInfo): void => {
     const loc = friendLocations.get(friend.userId);
     if (loc && mapRef.current) {
       mapRef.current.panTo(loc.lat, loc.lng);
       mapRef.current.setZoom(16);
     }
-  };
+  }, [friendLocations]);
+
+  const handleFriendAvatarTap = useCallback((friend: FriendInfo): void => {
+    const now = Date.now();
+    const previous = avatarTapRef.current.get(friend.userId);
+    if (previous && now - previous.at <= 320) {
+      window.clearTimeout(previous.timer);
+      avatarTapRef.current.delete(friend.userId);
+      handleFriendDoubleClick(friend);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      avatarTapRef.current.delete(friend.userId);
+      handleLocateFriend(friend);
+    }, 330);
+    avatarTapRef.current.set(friend.userId, { at: now, timer });
+  }, [handleFriendDoubleClick, handleLocateFriend]);
 
   // Toggle map type (placeholder — satellite layer requires AMap plugin)
   const handleToggleLayer = (): void => {
@@ -382,8 +405,9 @@ const MapPage: React.FC = () => {
                 <button
                   key={friend.userId}
                   type="button"
-                  onClick={() => handleLocateFriend(friend)}
+                  onClick={() => handleFriendAvatarTap(friend)}
                   className="flex shrink-0 flex-col items-center gap-1"
+                  aria-label={`单击定位 ${friend.nickname}，双击戳一戳`}
                 >
                   <div className="relative">
                     <Avatar
@@ -438,12 +462,6 @@ const MapPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Poke notification */}
-      <PokeNotification
-        notification={activeNotification}
-        onDismiss={dismissNotification}
-      />
 
       {/* Alert notification */}
       <AlertNotification

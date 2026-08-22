@@ -121,7 +121,8 @@ async function connectRealtime(): Promise<void> {
     ).on('broadcast', { event: 'location:request' }, () => sendOwnLocationSnapshot());
     ownNotificationChannel = privateChannel(`user:${currentUserId}:notifications`)
       .on('broadcast', { event: 'alert:receive' }, ({ payload }) => emit('alert:receive', payload))
-      .on('broadcast', { event: 'poke:receive' }, ({ payload }) => emit('poke:receive', payload));
+      .on('broadcast', { event: 'poke:receive' }, ({ payload }) => emit('poke:receive', payload))
+      .on('broadcast', { event: 'drawing:receive' }, ({ payload }) => emit('drawing:receive', payload));
     ownPresenceChannel = privateChannel(
       `friends:${currentUserId}:presence`,
       currentUserId,
@@ -220,7 +221,7 @@ function getLocationRequestChannel(userId: string): Promise<RealtimeChannel> {
 
 async function sendNotification(
   userId: string,
-  event: 'alert:receive' | 'poke:receive',
+  event: 'alert:receive' | 'poke:receive' | 'drawing:receive',
   payload: Record<string, unknown>,
 ): Promise<void> {
   const channel = await getNotificationChannel(userId);
@@ -286,10 +287,23 @@ function sendRealtime(event: string, data: unknown): void {
   }
 
   if (event === 'poke:send' && typeof payload.toUserId === 'string') {
+    const profile = getProfile();
     void sendNotification(payload.toUserId, 'poke:receive', {
       ...payload,
       fromUserId: currentUserId,
+      fromNickname: profile?.nickname || '好友',
+      fromAvatar: profile?.avatar,
     }).catch((error) => logger.error('拍一拍发送失败', error));
+    return;
+  }
+
+  if (event === 'drawing:send' && typeof payload.toUserId === 'string') {
+    const profile = getProfile();
+    void sendNotification(payload.toUserId, 'drawing:receive', {
+      ...payload,
+      fromUserId: currentUserId,
+      fromNickname: profile?.nickname || '好友',
+    }).catch((error) => logger.error('画作实时通知发送失败', error));
     return;
   }
 

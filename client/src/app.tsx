@@ -12,6 +12,8 @@ import FriendDetailPage from './pages/FriendDetailPage/FriendDetailPage';
 import ShortcutsPage from './pages/ShortcutsPage/ShortcutsPage';
 import FakeCallPage from './pages/FakeCallPage/FakeCallPage';
 import AddFriendPage from './pages/AddFriendPage/AddFriendPage';
+import DrawingPage from './pages/DrawingPage/DrawingPage';
+import DrawingsInboxPage from './pages/DrawingsInboxPage/DrawingsInboxPage';
 import { getOnboarding } from '@client/src/lib/storage';
 import { useAuth } from '@client/src/hooks/useAuth';
 
@@ -78,6 +80,8 @@ const RoutesComponent = () => {
         <Route path="shortcuts" element={<ShortcutsPage />} />
         <Route path="fake-call" element={<FakeCallPage />} />
         <Route path="add-friend" element={<AddFriendPage />} />
+        <Route path="draw/:friendId" element={<DrawingPage />} />
+        <Route path="drawings" element={<DrawingsInboxPage />} />
       </Route>
       <Route path="login" element={<LoginRoute />} />
       <Route path="onboarding" element={<OnboardingRoute />} />

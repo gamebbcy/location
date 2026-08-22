@@ -41,7 +41,7 @@ function generateMessageId(): string {
   return `poke_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function usePoke(): UsePokeReturn {
+export function usePoke(listenForIncoming = true): UsePokeReturn {
   const { send, on, off, isConnected } = useWebSocket();
   const [activeNotification, setActiveNotification] = useState<PokeNotification | null>(null);
   const [shakingUserIds, setShakingUserIds] = useState<Set<string>>(new Set());
@@ -153,8 +153,8 @@ export function usePoke(): UsePokeReturn {
 
       showNotification({
         fromUserId: payload.fromUserId,
-        fromNickname: friendInfo?.nickname || '好友',
-        fromAvatar: friendInfo?.avatar,
+        fromNickname: friendInfo?.nickname || payload.fromNickname || '好友',
+        fromAvatar: friendInfo?.avatar || payload.fromAvatar,
         messageId: payload.messageId,
         timestamp: payload.timestamp,
       });
@@ -218,11 +218,12 @@ export function usePoke(): UsePokeReturn {
   }, []);
 
   useEffect(() => {
+    if (!listenForIncoming) return;
     on('poke:receive', handlePokeReceive);
     return () => {
       off('poke:receive', handlePokeReceive);
     };
-  }, [on, off, handlePokeReceive]);
+  }, [handlePokeReceive, listenForIncoming, off, on]);
 
   useEffect(() => {
     return () => {
